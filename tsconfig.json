@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022" /* Nâng cấp lên ES2022 cho Node.js hiện đại */,
+    "module": "NodeNext" /* Hỗ trợ chuẩn ESM/NodeJs module */,
+    "moduleResolution": "NodeNext" /* Cách giải quyết module theo NodeNext */,
+    "esModuleInterop": true /* Cho phép dùng import thay cho require */,
+    "resolveJsonModule": true /* Cho phép import trực tiếp file .json */,
+    "strict": true /* Bật type-checking chặt chẽ */,
+
+    /* CẤU HÌNH PATH ALIAS (@/) KHI KHÔNG CÓ SRC */
+    "baseUrl": "." /* Định nghĩa thư mục gốc */,
+    "paths": {
+      "@/*": ["./*"] /* Map trực tiếp @/ vào thư mục gốc dự án */
+    },
+
+    /* CẤU HÌNH CẤU TRÚC THƯ MỤC */
+    "rootDir": "./" /* Thư mục gốc chứa toàn bộ code TS */,
+    "outDir": "./dist" /* Thư mục chứa code JS sau khi build */,
+    "skipLibCheck": true /* Bỏ qua kiểm tra type của node_modules */,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["**/*.ts" /* Quét tất cả các file .ts từ gốc dự án */],
+  "exclude": ["node_modules", "dist"]
+}
