@@ -10,44 +10,52 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
 export const registerPost = async (req: Request, res: Response) => {
-  const { fullName, email, password, confirmPassword } = req.body;
+  try {
+    const { fullName, email, password, confirmPassword } = req.body;
 
-  if (password !== confirmPassword) {
-    res.json({
-      code: "error",
-      message: "Mật khẩu chưa trùng khớp. Vui lòng thử lại <3",
+    if (password !== confirmPassword) {
+      res.status(400).json({
+        code: "error",
+        message: "Mật khẩu chưa trùng khớp. Vui lòng thử lại <3",
+      });
+      return;
+    }
+
+    const existAccount = await AccountUser.findOne({
+      email: email,
     });
-    return;
-  }
 
-  const existAccount = await AccountUser.findOne({
-    email: email,
-  });
+    if (existAccount) {
+      res.status(400).json({
+        code: "error",
+        message: "Tài khoản đã tồn tại. Vui lòng thử lại <3",
+      });
+      return;
+    }
+    // Mã hóa MK với Bcryptjs
+    const salt = await bcrypt.genSaltSync(10);
+    const hashPassword = await bcrypt.hashSync(password, salt);
 
-  if (existAccount) {
-    res.json({
-      code: "error",
-      message: "Tài khoản đã tồn tại. Vui lòng thử lại <3",
+    // Save in DB
+    const newAccount = new AccountUser({
+      fullName,
+      password: hashPassword,
+      email,
     });
-    return;
+
+    await newAccount.save();
+
+    res.status(201).json({
+      code: "success",
+      message: "Đăng kí tài khoản thành công <3",
+    });
+  } catch (error) {
+    console.log("Lỗi đăng kí: ", error);
+    res.status(500).json({
+      code: "error",
+      message: "Lỗi hệ thống server. Vui lòng thử lại sau.",
+    });
   }
-  // Mã hóa MK với Bcryptjs
-  const salt = bcrypt.genSaltSync(10);
-  const hashPassword = bcrypt.hashSync(password, salt);
-
-  // Save in DB
-  const newAccount = new AccountUser({
-    fullName,
-    password: hashPassword,
-    email,
-  });
-
-  await newAccount.save();
-
-  res.json({
-    code: "success",
-    message: "Đăng kí tài khoản thành công <3",
-  });
 };
 
 export const loginPost = async (req: Request, res: Response) => {
