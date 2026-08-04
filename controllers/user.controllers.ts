@@ -8,6 +8,7 @@ import bcrypt from "bcryptjs";
 
 // JWT
 import jwt from "jsonwebtoken";
+import { AccountRequest } from "@/interfaces/request.interfaces";
 
 export const registerPost = async (req: Request, res: Response) => {
   try {
@@ -124,18 +125,28 @@ export const loginPost = async (req: Request, res: Response) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    // Save in local
-    res.cookie("accessToken", accessToken, {
-      maxAge: 24 * 60 * 60 * 1000,
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-    });
+    // Delete Pass and Refresh trước khi trả về FE
+    const {
+      password: _p,
+      refreshToken: _r,
+      _id,
+      __v,
+      createdAt,
+      updatedAt,
+      ...userObj
+    } = existAccount.toObject();
+
+    // Biến _id thành string
+    const infoUserFinal = {
+      ...userObj,
+      id: existAccount._id,
+    };
 
     res.status(200).json({
       code: "success",
       message: "Đăng nhập thành công <3",
       accessToken,
+      user: infoUserFinal,
     });
   } catch (error) {
     console.log("Lỗi đăng nhập: ", error);
@@ -144,4 +155,12 @@ export const loginPost = async (req: Request, res: Response) => {
       message: "Lỗi hệ thống Server.",
     });
   }
+};
+
+export const profile = async (req: AccountRequest, res: Response) => {
+  res.status(200).json({
+    code: "success",
+    message: "Lấy thông tin thành công <3",
+    data: req.account,
+  });
 };
