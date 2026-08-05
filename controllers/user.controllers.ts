@@ -37,11 +37,15 @@ export const registerPost = async (req: Request, res: Response) => {
     const salt = await bcrypt.genSaltSync(10);
     const hashPassword = await bcrypt.hashSync(password, salt);
 
+    // Random avt
+    const randomAvt = `${process.env.API_AVT}${email}`;
+
     // Save in DB
     const newAccount = new AccountUser({
       fullName,
       password: hashPassword,
       email,
+      avatar: randomAvt,
     });
 
     await newAccount.save();
@@ -125,7 +129,7 @@ export const loginPost = async (req: Request, res: Response) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    // Delete Pass and Refresh trước khi trả về FE
+    // Delete những trường bảo mật trước khi trả về FE
     const {
       password: _p,
       refreshToken: _r,
