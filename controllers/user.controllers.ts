@@ -8,9 +8,14 @@ import bcrypt from "bcryptjs";
 
 // JWT
 import jwt from "jsonwebtoken";
+
+// Interface
 import { AccountRequest } from "@/interfaces/request.interfaces";
 
-export const registerPost = async (req: Request, res: Response) => {
+export const registerPost = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     const { fullName, email, password, confirmPassword } = req.body;
 
@@ -22,10 +27,7 @@ export const registerPost = async (req: Request, res: Response) => {
       return;
     }
 
-    const existAccount = await AccountUser.findOne({
-      email: email,
-    });
-
+    const existAccount = await AccountUser.findOne({ email });
     if (existAccount) {
       res.status(400).json({
         code: "error",
@@ -33,9 +35,10 @@ export const registerPost = async (req: Request, res: Response) => {
       });
       return;
     }
+
     // Mã hóa MK với Bcryptjs
-    const salt = await bcrypt.genSaltSync(10);
-    const hashPassword = await bcrypt.hashSync(password, salt);
+    const salt = await bcrypt.genSalt(10);
+    const hashPassword = await bcrypt.hash(password, salt);
 
     // Random avt
     const randomAvt = `${process.env.API_AVT}${email}`;
@@ -58,7 +61,7 @@ export const registerPost = async (req: Request, res: Response) => {
     console.log("Lỗi đăng kí: ", error);
     res.status(500).json({
       code: "error",
-      message: "Lỗi hệ thống server. Vui lòng thử lại sau.",
+      message: "Lỗi hệ thống server. Vui lòng thử lại sau <3",
     });
   }
 };
