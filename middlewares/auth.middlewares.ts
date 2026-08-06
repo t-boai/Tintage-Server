@@ -1,4 +1,3 @@
-import AccountUser from "@/models/account-user.model";
 import { Response, NextFunction } from "express";
 
 // interface
@@ -6,6 +5,9 @@ import { AccountRequest } from "@/interfaces/request.interfaces";
 
 // JWT
 import jwt from "jsonwebtoken";
+
+// Modal
+import AccountUser from "@/models/account-user.model";
 
 export const verifyToken = async (
   req: AccountRequest,

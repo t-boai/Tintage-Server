@@ -11,6 +11,7 @@ import jwt from "jsonwebtoken";
 
 // Interface
 import { AccountRequest } from "@/interfaces/request.interfaces";
+import { REFRESH_COOKIE_OPTIONS } from "@/config/refreshCookie-option.config";
 
 export const registerPost = async (
   req: Request,
@@ -112,7 +113,6 @@ export const loginPost = async (req: Request, res: Response) => {
     const refreshToken = jwt.sign(
       {
         id: existAccount.id || existAccount._id,
-        email: existAccount.email,
       },
       `${process.env.JWT_REFRESH_SECRET}`,
       {
@@ -125,35 +125,20 @@ export const loginPost = async (req: Request, res: Response) => {
     await existAccount.save();
 
     // Save Refresh Token in HTTP-Only
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie("refreshToken", refreshToken, REFRESH_COOKIE_OPTIONS);
 
-    // Delete những trường bảo mật trước khi trả về FE
-    const {
-      password: _p,
-      refreshToken: _r,
-      _id,
-      __v,
-      createdAt,
-      updatedAt,
-      ...userObj
-    } = existAccount.toObject();
-
-    // Biến _id thành string
-    const infoUserFinal = {
-      ...userObj,
+    const userResponse = {
       id: existAccount._id,
+      fullName: existAccount.fullName,
+      email: existAccount.email,
+      avatar: existAccount.avatar,
     };
 
     res.status(200).json({
       code: "success",
       message: "Đăng nhập thành công <3",
       accessToken,
-      user: infoUserFinal,
+      user: userResponse,
     });
   } catch (error) {
     console.log("Lỗi đăng nhập: ", error);
