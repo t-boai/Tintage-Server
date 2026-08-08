@@ -64,10 +64,10 @@ const schema = new Schema<ICategories>(
 // HIGH TRAFFIC COMPOUND INDEXING
 schema.index({ deleted: 1, isActive: 1, isFeatured: 1, order: 1 });
 
-const HomeCategories = mongoose.model<ICategories>(
+const Categories = mongoose.model<ICategories>(
   "Category",
   schema,
-  "home-categories",
+  "categories",
 );
 
-export default HomeCategories;
+export default Categories;

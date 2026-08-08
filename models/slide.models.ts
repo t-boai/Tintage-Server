@@ -92,6 +92,6 @@ const schema = new mongoose.Schema<IHomeSlide>(
 // Tối ưu tốc độ query theo trạng thái và thứ tự hiển thị
 schema.index({ deleted: 1, isActive: 1, order: 1, createdAt: -1 });
 
-const HomeSlide = mongoose.model("HomeSlide", schema, "home-slide");
+const Slide = mongoose.model("HomeSlide", schema, "home-slide");
 
-export default HomeSlide;
+export default Slide;
