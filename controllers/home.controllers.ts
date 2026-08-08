@@ -25,7 +25,6 @@ export const slide = async (req: Request, res: Response): Promise<void> => {
         order: 1,
         createdAt: -1,
       }) // Ưu tiên sắp xếp theo order
-      .select("-__v -createdAt -updatedAt -deleted")
       .lean();
 
     // 2. Tạo slideResponse chọn lọc đúng các trường FE cần và đổi _id -> id

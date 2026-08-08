@@ -1,6 +1,10 @@
 import mongoose from "mongoose";
 
-const buttonSchema = new mongoose.Schema(
+// interface
+import { IButton } from "@/interfaces/ibutton.interfaces";
+import { IHomeSlide } from "@/interfaces/ihome-slides.interfaces";
+
+const buttonSchema = new mongoose.Schema<IButton>(
   {
     text: {
       type: String,
@@ -17,7 +21,7 @@ const buttonSchema = new mongoose.Schema(
   { _id: false },
 );
 
-const schema = new mongoose.Schema(
+const schema = new mongoose.Schema<IHomeSlide>(
   {
     badge: {
       type: String,
@@ -29,19 +33,19 @@ const schema = new mongoose.Schema(
       type: String,
       trim: true,
       required: [true, "Vui lòng nhập tiêu đề dòng 1"],
-      maxLength: [50, "Tiêu đề dòng 1 không quá 50 ký tự"],
+      maxLength: [100, "Tiêu đề dòng 1 không quá 100 ký tự"],
     },
     titleLine2: {
       type: String,
       trim: true,
       default: "",
-      maxLength: [50, "Tiêu đề dòng 2 không quá 50 ký tự"],
+      maxLength: [100, "Tiêu đề dòng 2 không quá 100 ký tự"],
     },
     description: {
       type: String,
       required: [true, "Vui lòng nhập mô tả"],
       trim: true,
-      maxLength: [150, "Mô tả không quá 150 ký tự"],
+      maxLength: [500, "Mô tả không quá 500 ký tự"],
     },
     primaryBtn: {
       type: buttonSchema,
@@ -64,12 +68,10 @@ const schema = new mongoose.Schema(
     order: {
       type: Number,
       default: 0,
-      index: true,
     },
     isActive: {
       type: Boolean,
       default: true,
-      index: true,
     },
     startDate: {
       type: Date,
@@ -88,7 +90,7 @@ const schema = new mongoose.Schema(
 );
 
 // Tối ưu tốc độ query theo trạng thái và thứ tự hiển thị
-schema.index({ isActive: 1, order: 1 });
+schema.index({ deleted: 1, isActive: 1, order: 1, createdAt: -1 });
 
 const HomeSlide = mongoose.model("HomeSlide", schema, "home-slide");
 
