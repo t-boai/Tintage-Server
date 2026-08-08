@@ -4,7 +4,6 @@ import { Router } from "express";
 import * as userControllers from "@/controllers/user.controllers";
 
 // Middlewares
-
 import * as authMiddlewares from "@/middlewares/auth.middlewares";
 
 const router = Router();
