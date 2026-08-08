@@ -7,5 +7,6 @@ const router = Router();
 
 router.get("/slide", homeControllers.slide);
 router.get("/categories", homeControllers.categories);
+router.get("/products-featured", homeControllers.productsFeatured);
 
 export default router;

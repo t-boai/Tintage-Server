@@ -1,13 +1,14 @@
 import { Request, Response } from "express";
 
 // modal
-import HomeSlide from "@/models/home-slide.models";
-import HomeCategories from "@/models/home-categories.models";
+import Slide from "@/models/slide.models";
+import Categories from "@/models/categories.models";
+import Product from "@/models/products.models";
 
 export const slide = async (req: Request, res: Response): Promise<void> => {
   try {
     const currentDate = new Date();
-    const slides = await HomeSlide.find({
+    const slides = await Slide.find({
       deleted: false,
       isActive: true,
       $and: [
@@ -64,7 +65,7 @@ export const categories = async (
   res: Response,
 ): Promise<void> => {
   try {
-    const categories = await HomeCategories.find({
+    const categories = await Categories.find({
       deleted: false,
       isActive: true,
       isFeatured: true,
@@ -93,5 +94,91 @@ export const categories = async (
       code: "error",
       message: "Lỗi hệ thống server. Vui lòng thử lại sau.",
     });
+  }
+};
+
+export const productsFeatured = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  try {
+    const limit = 6;
+
+    // Aggregation tính điểm Hot Score động
+    const products = await Product.aggregate([
+      {
+        $match: {
+          deleted: false,
+          isActive: true,
+          stock: { $gt: 0 },
+        },
+      },
+      {
+        $addFields: {
+          // Công thức: views*1 + likes*3 + sales*5
+          hotScore: {
+            $add: [
+              { $multiply: [{ $ifNull: ["$viewsCount", 0] }, 1] },
+              { $multiply: [{ $ifNull: ["$likesCount", 0] }, 3] },
+              { $multiply: [{ $ifNull: ["$salesCount", 0] }, 5] },
+            ],
+          },
+        },
+      },
+      {
+        $sort: {
+          isFeatured: -1, // true lên trước
+          order: 1, // order nhỏ lên trước
+          hotScore: -1, // Điểm Hot cao lên trước
+          createdAt: -1, // Mới nhất lên trước
+        },
+      },
+      { $limit: limit },
+      // Join (Lookup) sang collection categories để lấy tên & slug danh mục
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category",
+          foreignField: "_id",
+          as: "categoryInfo",
+        },
+      },
+      {
+        $unwind: {
+          path: "$categoryInfo",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+    ]);
+
+    const productsFinal = products.map((item) => ({
+      id: item._id.toString(),
+      brand: item.brand,
+      name: item.name,
+      price: item.price,
+      condition: item.condition ? `Độ mới ${item.condition}%` : null,
+      size: item.size || null,
+      isNew: item.isNewProduct,
+      image: item.images[0] || "",
+      slug: item.slug,
+      category: item.categoryInfo
+        ? {
+            id: item.categoryInfo._id.toString(),
+            name: item.categoryInfo.name,
+            slug: item.categoryInfo.slug,
+          }
+        : null,
+    }));
+
+    res.setHeader("Cache-Control", "public, max-age=900");
+
+    res.status(200).json({
+      code: "success",
+      message: "Lấy sản phẩm nổi bật thành công <3",
+      data: productsFinal,
+    });
+  } catch (error) {
+    console.error("Lỗi lấy sản phẩm mới nổi bật: ", error);
+    res.status(500).json({ code: "error", message: "Lỗi hệ thống server." });
   }
 };
