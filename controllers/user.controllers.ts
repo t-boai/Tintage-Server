@@ -28,7 +28,10 @@ export const registerPost = async (
       return;
     }
 
-    const existAccount = await AccountUser.findOne({ email });
+    const existAccount = await AccountUser.findOne({
+      email,
+      deleted: false,
+    }).lean();
     if (existAccount) {
       res.status(400).json({
         code: "error",
@@ -67,19 +70,28 @@ export const registerPost = async (
   }
 };
 
-export const loginPost = async (req: Request, res: Response) => {
+export const loginPost = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password } = req.body;
 
     const existAccount = await AccountUser.findOne({
       email: email,
-    });
+      deleted: false,
+    }).select("+password");
 
     if (!existAccount) {
       res.status(400).json({
         code: "error",
         message:
           "Email hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại <3",
+      });
+      return;
+    }
+
+    if (!existAccount.isActive) {
+      res.status(403).json({
+        code: "error",
+        message: "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ CSKH <3",
       });
       return;
     }
@@ -121,8 +133,14 @@ export const loginPost = async (req: Request, res: Response) => {
     );
 
     // Save Refresh in DB
-    existAccount.refreshToken = refreshToken;
-    await existAccount.save();
+    await AccountUser.updateOne(
+      {
+        _id: existAccount._id,
+      },
+      {
+        $set: { refreshToken: refreshToken },
+      },
+    );
 
     // Save Refresh Token in HTTP-Only
     res.cookie("refreshToken", refreshToken, REFRESH_COOKIE_OPTIONS);
@@ -149,7 +167,10 @@ export const loginPost = async (req: Request, res: Response) => {
   }
 };
 
-export const profile = async (req: AccountRequest, res: Response) => {
+export const profile = async (
+  req: AccountRequest,
+  res: Response,
+): Promise<void> => {
   res.status(200).json({
     code: "success",
     message: "Lấy thông tin thành công <3",

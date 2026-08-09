@@ -36,7 +36,11 @@ export const verifyToken = async (
     const { id, email } = decoded;
     let account = null;
 
-    const existAccount = await AccountUser.findById(id)
+    const existAccount = await AccountUser.findOne({
+      _id: id,
+      deleted: false,
+      isActive: true,
+    })
       .select("-password -refreshToken -createdAt -updatedAt -__v")
       .lean();
 
@@ -45,7 +49,7 @@ export const verifyToken = async (
     if (!account || account.email !== email) {
       res.status(401).json({
         code: "error",
-        message: "Tài khoản không tồn tại hoặc đã bị thay đổi <3",
+        message: "Tài khoản không tồn tại hoặc đã bị khóa <3",
       });
       return;
     }

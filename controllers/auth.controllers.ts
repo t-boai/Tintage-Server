@@ -42,12 +42,17 @@ export const refreshToken = async (
     }
 
     // Kiểm tra DB & Phát hiện Reuse Attack
-    const user = await AccountUser.findById(decoded.id);
+    const user = await AccountUser.findOne({
+      _id: decoded.id,
+      deleted: false,
+      isActive: true,
+    }).select("+refreshToken");
+
     if (!user) {
       res.clearCookie("refreshToken", REFRESH_COOKIE_OPTIONS);
       res.status(401).json({
         code: "error",
-        message: "Tài khoản không tồn tại <3",
+        message: "Tài khoản không tồn tại hoặc đã bị khóa <3",
       });
       return;
     }
@@ -55,8 +60,14 @@ export const refreshToken = async (
     // Reuse Detection: Nếu token đúng format nhưng không khớp DB -> Token cũ đã bị leak
     if (user.refreshToken !== refreshToken) {
       // Thu hồi toàn bộ session để bảo vệ
-      user.refreshToken = "";
-      await user.save();
+      await AccountUser.updateOne(
+        {
+          _id: user._id,
+        },
+        {
+          $set: { refreshToken: "" },
+        },
+      );
 
       res.clearCookie("refreshToken", REFRESH_COOKIE_OPTIONS);
       res.status(403).json({
@@ -86,8 +97,14 @@ export const refreshToken = async (
     );
 
     // Lưu Refresh Token mới vào DB & Cookie
-    user.refreshToken = newRefreshToken;
-    await user.save();
+    await AccountUser.updateOne(
+      {
+        _id: user._id,
+      },
+      {
+        $set: { refreshToken: newRefreshToken },
+      },
+    );
 
     res.cookie("refreshToken", newRefreshToken, {
       ...REFRESH_COOKIE_OPTIONS,
@@ -115,7 +132,7 @@ export const logoutPost = async (
 
     if (refreshToken) {
       // Xóa token trong DB
-      await AccountUser.findOneAndUpdate(
+      await AccountUser.updateOne(
         { refreshToken },
         { $set: { refreshToken: "" } },
       );
