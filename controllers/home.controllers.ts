@@ -28,7 +28,6 @@ export const slide = async (req: Request, res: Response): Promise<void> => {
       }) // Ưu tiên sắp xếp theo order
       .lean();
 
-    // 2. Tạo slideResponse chọn lọc đúng các trường FE cần và đổi _id -> id
     const slidesFinal = slides.map((item) => ({
       id: item._id.toString(),
       badge: item.badge,
@@ -40,10 +39,6 @@ export const slide = async (req: Request, res: Response): Promise<void> => {
       image: item.image,
       alt: item.alt,
     }));
-
-    // HIGH TRAFFIC TACTIC: HTTP Caching
-    // Báo cho Trình duyệt/CDN tự động cache API này trong 5 phút
-    // Giảm 90% tải cho Server nếu f5 liên tục
     res.setHeader("Cache-Control", "public, max-age=300");
 
     res.status(200).json({
@@ -160,7 +155,11 @@ export const productsFeatured = async (
       size: item.size || null,
       isNew: item.isNewProduct,
       image: item.images[0] || "",
+      likesCount: item.likesCount,
+      originalPrice: item.originalPrice,
+      location: item.location,
       slug: item.slug,
+      salesCount: item.salesCount,
       category: item.categoryInfo
         ? {
             id: item.categoryInfo._id.toString(),

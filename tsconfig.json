@@ -8,7 +8,6 @@
     "strict": true /* Bật type-checking chặt chẽ */,
 
     /* CẤU HÌNH PATH ALIAS (@/) KHI KHÔNG CÓ SRC */
-    "baseUrl": "." /* Định nghĩa thư mục gốc */,
     "paths": {
       "@/*": ["./*"] /* Map trực tiếp @/ vào thư mục gốc dự án */
     },

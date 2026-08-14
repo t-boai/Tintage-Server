@@ -56,6 +56,12 @@ const schema = new mongoose.Schema<IAccountUser>(
   },
 );
 
-const AccountUser = mongoose.model("AccountUser", schema, "users");
+schema.index({ email: 1, deleted: 1, isActive: 1 });
+
+const AccountUser = mongoose.model<IAccountUser>(
+  "AccountUser",
+  schema,
+  "users",
+);
 
 export default AccountUser;

@@ -10,6 +10,8 @@ export interface IProduct extends Document {
   size?: string;
   images: string[];
   category: mongoose.Types.ObjectId; // FK nối sang bảng Category
+  seller: mongoose.Types.ObjectId;
+  location: string;
   description?: string;
   isNewProduct: boolean;
   isFeatured: boolean;

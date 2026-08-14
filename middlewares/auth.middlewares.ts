@@ -54,7 +54,17 @@ export const verifyToken = async (
       return;
     }
 
-    req.account = account;
+    const accountFinal = {
+      id: account._id.toString(),
+      fullName: account.fullName,
+      email: account.email,
+      phone: account.phone || "",
+      avatar: account.avatar || "",
+      isActive: account.isActive,
+      isEmailVerified: account.isEmailVerified,
+    };
+
+    req.account = accountFinal;
     next();
   } catch (error) {
     // Phân loại lỗi

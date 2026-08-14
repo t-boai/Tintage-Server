@@ -63,6 +63,18 @@ const schema = new Schema<IProduct>(
       required: [true, "Sản phẩm phải thuộc một danh mục"],
       index: true,
     },
+    seller: {
+      type: Schema.Types.ObjectId,
+      ref: "AccountUser",
+      required: [true, "Sản phẩm phải có người bán"],
+      index: true,
+    },
+    location: {
+      type: String,
+      required: [true, "Vui lòng cung cấp khu vực bán (VD: Hà Nội, TP.HCM)"],
+      trim: true,
+      index: true, // Đánh index để lọc theo khu vực (Vd: Tìm quanh Hà Nội)
+    },
     description: {
       type: String,
       trim: true,
@@ -108,11 +120,15 @@ const schema = new Schema<IProduct>(
   { timestamps: true },
 );
 
-// 1. Phủ Query Lọc & Sắp xếp theo Danh mục
+// Phủ Query Lọc Trang chủ & Danh mục
 schema.index({ category: 1, deleted: 1, isActive: 1, createdAt: -1 });
-
-// 2. Phủ Query Lọc Trang chủ & Hot Score
 schema.index({ deleted: 1, isActive: 1, isFeatured: -1, order: 1 });
+
+// Tối ưu C2C: Truy vấn tất cả sản phẩm của 1 Cửa hàng/Người bán cụ thể cực nhanh
+schema.index({ seller: 1, deleted: 1, isActive: 1, createdAt: -1 });
+
+// Tối ưu C2C: Phục vụ bộ lọc "Tìm quanh đây" (Lọc category + location + giá)
+schema.index({ location: 1, category: 1, deleted: 1, isActive: 1 });
 
 const Product = mongoose.model<IProduct>("Product", schema, "products");
 
