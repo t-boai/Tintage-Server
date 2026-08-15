@@ -20,7 +20,7 @@ export const registerPost = async (
   try {
     const { fullName, email, password, confirmPassword } = req.body;
 
-    if (password !== confirmPassword) {
+    if (!password || password !== confirmPassword) {
       res.status(400).json({
         code: "error",
         message: "Mật khẩu chưa trùng khớp. Vui lòng thử lại <3",
@@ -28,10 +28,14 @@ export const registerPost = async (
       return;
     }
 
+    const cleanEmail = email?.trim().toLowerCase();
+    const cleanFullName = fullName?.trim();
+
     const existAccount = await AccountUser.findOne({
-      email,
+      email: cleanEmail,
       deleted: false,
     }).lean();
+
     if (existAccount) {
       res.status(400).json({
         code: "error",
@@ -49,9 +53,9 @@ export const registerPost = async (
 
     // Save in DB
     const newAccount = new AccountUser({
-      fullName,
+      fullName: cleanFullName,
       password: hashPassword,
-      email,
+      email: cleanEmail,
       avatar: randomAvt,
     });
 
