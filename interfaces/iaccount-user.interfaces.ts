@@ -1,3 +1,4 @@
+export type SellerRoleType = "individual" | "pro" | "mall";
 export interface IAccountUser extends Document {
   fullName: string;
   email: string;
@@ -8,6 +9,9 @@ export interface IAccountUser extends Document {
   isEmailVerified: boolean;
   refreshToken?: string;
   deleted: boolean;
+  isVerifiedSeller: boolean;
+  sellerRole: SellerRoleType;
+  sellerRating: number;
   createdAt: Date;
   updatedAt: Date;
 }

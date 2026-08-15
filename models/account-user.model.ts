@@ -50,6 +50,23 @@ const schema = new mongoose.Schema<IAccountUser>(
       type: Boolean,
       default: false,
     },
+    isVerifiedSeller: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    sellerRole: {
+      type: String,
+      enum: ["individual", "shop", "mall"],
+      default: "individual",
+      index: true,
+    },
+    sellerRating: {
+      type: Number,
+      default: 5.0,
+      min: [0, "Rating không thể nhỏ hơn 0"],
+      max: [5, "Rating tối đa là 5.0"],
+    },
   },
   {
     timestamps: true,
@@ -57,6 +74,7 @@ const schema = new mongoose.Schema<IAccountUser>(
 );
 
 schema.index({ email: 1, deleted: 1, isActive: 1 });
+schema.index({ isVerifiedSeller: 1, sellerRole: 1 });
 
 const AccountUser = mongoose.model<IAccountUser>(
   "AccountUser",

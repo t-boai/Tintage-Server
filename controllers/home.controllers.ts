@@ -144,6 +144,43 @@ export const productsFeatured = async (
           preserveNullAndEmptyArrays: true,
         },
       },
+      //
+      {
+        $lookup: {
+          from: "users",
+          let: { sellerId: "$seller" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$_id", "$$sellerId"] },
+                    { $eq: ["$deleted", false] },
+                    { $eq: ["$isActive", true] },
+                  ],
+                },
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                fullName: 1,
+                avatar: 1,
+                isVerifiedSeller: 1,
+                sellerRole: 1,
+                sellerRating: 1,
+              },
+            },
+          ],
+          as: "sellerInfo",
+        },
+      },
+      {
+        $unwind: {
+          path: "$sellerInfo",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
     ]);
 
     const productsFinal = products.map((item) => ({
@@ -155,7 +192,6 @@ export const productsFeatured = async (
       size: item.size || null,
       isNew: item.isNewProduct,
       image: item.images[0] || "",
-      likesCount: item.likesCount,
       originalPrice: item.originalPrice,
       location: item.location,
       slug: item.slug,
@@ -165,6 +201,16 @@ export const productsFeatured = async (
             id: item.categoryInfo._id.toString(),
             name: item.categoryInfo.name,
             slug: item.categoryInfo.slug,
+          }
+        : null,
+      seller: item.sellerInfo
+        ? {
+            id: item.sellerInfo._id.toString(),
+            fullName: item.sellerInfo.fullName,
+            avatar: item.sellerInfo.avatar || "",
+            isVerifiedSeller: item.sellerInfo.isVerifiedSeller || false,
+            sellerRole: item.sellerInfo.sellerRole || "individual",
+            sellerRating: item.sellerInfo.sellerRating || 5.0,
           }
         : null,
     }));
