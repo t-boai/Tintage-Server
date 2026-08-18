@@ -5,6 +5,9 @@ import Slide from "@/models/slide.models";
 import Categories from "@/models/categories.models";
 import Product from "@/models/products.models";
 
+// helpers
+import { isActuallyNew } from "@/helpers/isActuallyNew.helper";
+
 export const slide = async (req: Request, res: Response): Promise<void> => {
   try {
     const currentDate = new Date();
@@ -39,6 +42,7 @@ export const slide = async (req: Request, res: Response): Promise<void> => {
       image: item.image,
       alt: item.alt,
     }));
+
     res.setHeader("Cache-Control", "public, max-age=300");
 
     res.status(200).json({
@@ -183,37 +187,41 @@ export const productsFeatured = async (
       },
     ]);
 
-    const productsFinal = products.map((item) => ({
-      id: item._id.toString(),
-      brand: item.brand,
-      name: item.name,
-      price: item.price,
-      condition: item.condition ? `Độ mới ${item.condition}%` : null,
-      size: item.size || null,
-      isNew: item.isNewProduct,
-      image: item.images[0] || "",
-      originalPrice: item.originalPrice,
-      location: item.location,
-      slug: item.slug,
-      salesCount: item.salesCount,
-      category: item.categoryInfo
-        ? {
-            id: item.categoryInfo._id.toString(),
-            name: item.categoryInfo.name,
-            slug: item.categoryInfo.slug,
-          }
-        : null,
-      seller: item.sellerInfo
-        ? {
-            id: item.sellerInfo._id.toString(),
-            fullName: item.sellerInfo.fullName,
-            avatar: item.sellerInfo.avatar || "",
-            isVerifiedSeller: item.sellerInfo.isVerifiedSeller || false,
-            sellerRole: item.sellerInfo.sellerRole || "individual",
-            sellerRating: item.sellerInfo.sellerRating || 5.0,
-          }
-        : null,
-    }));
+    const productsFinal = products.map((item) => {
+      const actuallyNew = isActuallyNew(item.isNewProduct, item.createdAt);
+
+      return {
+        id: item._id.toString(),
+        brand: item.brand,
+        name: item.name,
+        price: item.price,
+        condition: item.condition ? `Độ mới ${item.condition}%` : null,
+        size: item.size || null,
+        isNew: actuallyNew,
+        image: item.images[0] || "",
+        originalPrice: item.originalPrice,
+        location: item.location,
+        slug: item.slug,
+        salesCount: item.salesCount,
+        category: item.categoryInfo
+          ? {
+              id: item.categoryInfo._id.toString(),
+              name: item.categoryInfo.name,
+              slug: item.categoryInfo.slug,
+            }
+          : null,
+        seller: item.sellerInfo
+          ? {
+              id: item.sellerInfo._id.toString(),
+              fullName: item.sellerInfo.fullName,
+              avatar: item.sellerInfo.avatar || "",
+              isVerifiedSeller: item.sellerInfo.isVerifiedSeller || false,
+              sellerRole: item.sellerInfo.sellerRole || "individual",
+              sellerRating: item.sellerInfo.sellerRating || 5.0,
+            }
+          : null,
+      };
+    });
 
     res.setHeader("Cache-Control", "public, max-age=900");
 
@@ -333,37 +341,41 @@ export const dailyDiscover = async (
     ]);
 
     // Format
-    const productsFinal = products.map((item) => ({
-      id: item._id.toString(),
-      brand: item.brand,
-      name: item.name,
-      price: item.price,
-      condition: item.condition ? `Độ mới ${item.condition}%` : null,
-      size: item.size || null,
-      isNew: item.isNewProduct,
-      image: item.images[0] || "",
-      originalPrice: item.originalPrice,
-      location: item.location,
-      slug: item.slug,
-      salesCount: item.salesCount,
-      category: item.categoryInfo
-        ? {
-            id: item.categoryInfo._id.toString(),
-            name: item.categoryInfo.name,
-            slug: item.categoryInfo.slug,
-          }
-        : null,
-      seller: item.sellerInfo
-        ? {
-            id: item.sellerInfo._id.toString(),
-            fullName: item.sellerInfo.fullName,
-            avatar: item.sellerInfo.avatar || "",
-            isVerifiedSeller: item.sellerInfo.isVerifiedSeller || false,
-            sellerRole: item.sellerInfo.sellerRole || "individual",
-            sellerRating: item.sellerInfo.sellerRating || 5.0,
-          }
-        : null,
-    }));
+    const productsFinal = products.map((item) => {
+      const actuallyNew = isActuallyNew(item.isNewProduct, item.createdAt);
+
+      return {
+        id: item._id.toString(),
+        brand: item.brand,
+        name: item.name,
+        price: item.price,
+        condition: item.condition ? `Độ mới ${item.condition}%` : null,
+        size: item.size || null,
+        isNew: actuallyNew,
+        image: item.images[0] || "",
+        originalPrice: item.originalPrice,
+        location: item.location,
+        slug: item.slug,
+        salesCount: item.salesCount,
+        category: item.categoryInfo
+          ? {
+              id: item.categoryInfo._id.toString(),
+              name: item.categoryInfo.name,
+              slug: item.categoryInfo.slug,
+            }
+          : null,
+        seller: item.sellerInfo
+          ? {
+              id: item.sellerInfo._id.toString(),
+              fullName: item.sellerInfo.fullName,
+              avatar: item.sellerInfo.avatar || "",
+              isVerifiedSeller: item.sellerInfo.isVerifiedSeller || false,
+              sellerRole: item.sellerInfo.sellerRole || "individual",
+              sellerRating: item.sellerInfo.sellerRating || 5.0,
+            }
+          : null,
+      };
+    });
 
     // Lưu Cache đến 12h tối
     res.setHeader("Cache-Control", `public, max-age=${second}`);
