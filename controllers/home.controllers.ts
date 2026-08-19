@@ -5,8 +5,12 @@ import Slide from "@/models/slide.models";
 import Categories from "@/models/categories.models";
 import Product from "@/models/products.models";
 
+//moment
+import moment from "moment";
+
 // helpers
 import { isActuallyNew } from "@/helpers/isActuallyNew.helper";
+import Blog from "@/models/blogs.models";
 
 export const slide = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -387,5 +391,53 @@ export const dailyDiscover = async (
   } catch (error) {
     console.error("Lỗi lấy sản phẩm gợi ý hôm nay: ", error);
     res.status(500).json({ code: "error", message: "Lỗi hệ thống server." });
+  }
+};
+
+export const blogs = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const limit = 3;
+    const blogs = await Blog.find({
+      deleted: false,
+      isActive: true,
+      publishedAt: { $lte: new Date() },
+    })
+      .sort({
+        publishedAt: -1,
+        createdAt: -1,
+      })
+      .limit(limit)
+      .select(
+        "category title description image slug readTime publishedAt createdAt",
+      )
+      .lean();
+
+    const blogsFinal = blogs.map((item) => ({
+      id: item._id.toString(),
+      category: item.category,
+      title: item.title,
+      description: item.description,
+      date: moment(item.publishedAt || item.createdAt).format("DD/MM/YYYY"),
+      readTime: `${item.readTime || 5} phút đọc`,
+      image: item.image,
+      slug: item.slug,
+    }));
+
+    res.setHeader(
+      "Cache-Control",
+      "public, max-age=1800, stale-while-revalidate=60",
+    );
+
+    res.status(200).json({
+      code: "success",
+      message: "Lấy danh sách bài viết mới nhất thành công <3",
+      data: blogsFinal,
+    });
+  } catch (error) {
+    console.error("Lấy danh sách Blog lỗi: ", error);
+    res.status(500).json({
+      code: "error",
+      message: "Lỗi hệ thống server. Vui lòng thử lại sau.",
+    });
   }
 };

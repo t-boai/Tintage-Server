@@ -9,5 +9,6 @@ router.get("/slide", homeControllers.slide);
 router.get("/categories", homeControllers.categories);
 router.get("/products-featured", homeControllers.productsFeatured);
 router.get("/daily-discover", homeControllers.dailyDiscover);
+router.get("/blogs", homeControllers.blogs);
 
 export default router;
