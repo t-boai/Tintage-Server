@@ -4,7 +4,7 @@ import { NextFunction, Request, Response, Router } from "express";
 import userRoutes from "@/routes/user.routes";
 import authRoutes from "@/routes/auth.routes";
 import homeRoutes from "@/routes/home.routes";
-import productRoutes from "@/routes/product.routes";
+import heartRoutes from "@/routes/heart.routes";
 
 const router: Router = Router();
 
@@ -16,6 +16,6 @@ router.use((req: Request, res: Response, next: NextFunction): void => {
 router.use("/user", userRoutes);
 router.use("/auth", authRoutes);
 router.use("/home", homeRoutes);
-router.use("/product", productRoutes);
+router.use("/heart", heartRoutes);
 
 export default router;

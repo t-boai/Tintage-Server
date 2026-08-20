@@ -1,7 +1,7 @@
 import { Router } from "express";
 
 // controller
-import * as productControllers from "@/controllers/product.controllers";
+import * as heartControllers from "@/controllers/heart.controllers";
 
 // middlewares
 import * as authMiddlewares from "@/middlewares/auth.middlewares";
@@ -9,20 +9,16 @@ import * as authMiddlewares from "@/middlewares/auth.middlewares";
 const router = Router();
 
 router.post(
-  "/:id/heart",
+  "/add/:id",
   authMiddlewares.verifyToken,
-  productControllers.heartPost,
+  heartControllers.heartPost,
 );
 
-router.get(
-  "/my-heart",
-  authMiddlewares.verifyToken,
-  productControllers.myHeart,
-);
+router.get("/my-heart", authMiddlewares.verifyToken, heartControllers.myHeart);
 
 router.get(
   "/my-heartlist",
   authMiddlewares.verifyToken,
-  productControllers.myHeartList,
+  heartControllers.myHeartList,
 );
 export default router;
