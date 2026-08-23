@@ -28,4 +28,10 @@ router.delete(
   cartControllers.clearCart,
 );
 
+router.delete(
+  "/clear-unavailable",
+  middleWares.verifyToken,
+  cartControllers.clearUnavailable,
+);
+
 export default router;
