@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from "mongoose";
+import mongoose, { Schema } from "mongoose";
 
 // interface
 import { IProduct } from "@/interfaces/iproducts.interfaces";
@@ -26,8 +26,10 @@ const schema = new Schema<IProduct>(
       slug: "name",
       unique: true,
       lowercase: true,
+      sparse: true,
       index: true,
     },
+    material: { type: String, default: "" },
     price: {
       type: Number,
       required: [true, "Vui lòng nhập giá bán"],
@@ -109,6 +111,10 @@ const schema = new Schema<IProduct>(
       default: 0,
     },
     salesCount: {
+      type: Number,
+      default: 0,
+    },
+    discount: {
       type: Number,
       default: 0,
     },

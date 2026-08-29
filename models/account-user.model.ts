@@ -3,6 +3,9 @@ import mongoose from "mongoose";
 // interface
 import { IAccountUser } from "@/interfaces/iaccount-user.interfaces";
 
+const slug = require("mongoose-slug-updater");
+mongoose.plugin(slug);
+
 const schema = new mongoose.Schema<IAccountUser>(
   {
     fullName: {
@@ -14,15 +17,23 @@ const schema = new mongoose.Schema<IAccountUser>(
     email: {
       type: String,
       required: [true, "Vui lòng nhập email"],
-      unique: true, // Tự động tạo unique index
+      unique: true,
       lowercase: true,
       trim: true,
+      index: true,
+    },
+    slug: {
+      type: String,
+      slug: "fullName",
+      unique: true,
+      sparse: true,
+      lowercase: true,
       index: true,
     },
     password: {
       type: String,
       required: [true, "Vui lòng nhập mật khẩu"],
-      select: false, // Bảo mật High-Traffic: Mặc định query find() sẽ không trả về password
+      select: false,
     },
     phone: {
       type: String,
@@ -35,7 +46,7 @@ const schema = new mongoose.Schema<IAccountUser>(
     },
     isActive: {
       type: Boolean,
-      default: true, // Dùng để khóa tài khoản nếu vi phạm
+      default: true,
     },
     isEmailVerified: {
       type: Boolean,
@@ -57,7 +68,7 @@ const schema = new mongoose.Schema<IAccountUser>(
     },
     sellerRole: {
       type: String,
-      enum: ["individual", "shop", "mall"],
+      enum: ["individual", "pro", "mall"],
       default: "individual",
       index: true,
     },
@@ -67,6 +78,10 @@ const schema = new mongoose.Schema<IAccountUser>(
       min: [0, "Rating không thể nhỏ hơn 0"],
       max: [5, "Rating tối đa là 5.0"],
     },
+    reviewCount: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,
@@ -75,6 +90,7 @@ const schema = new mongoose.Schema<IAccountUser>(
 
 schema.index({ email: 1, deleted: 1, isActive: 1 });
 schema.index({ isVerifiedSeller: 1, sellerRole: 1 });
+schema.index({ slug: 1, deleted: 1, isActive: 1 });
 
 const AccountUser = mongoose.model<IAccountUser>(
   "AccountUser",

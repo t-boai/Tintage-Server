@@ -36,9 +36,16 @@ const schema = new Schema<ICategories>(
     parentId: {
       type: Schema.Types.ObjectId,
       ref: "Category",
-      default: null, // Danh mục cha/con chuẩn relational (dùng ObjectId thay vì String)
+      default: null,
       index: true,
     },
+    ancestors: [
+      {
+        _id: { type: Schema.Types.ObjectId, ref: "Category" },
+        name: { type: String },
+        slug: { type: String },
+      },
+    ],
     order: {
       type: Number,
       default: 0,
@@ -63,6 +70,7 @@ const schema = new Schema<ICategories>(
 
 // HIGH TRAFFIC COMPOUND INDEXING
 schema.index({ deleted: 1, isActive: 1, isFeatured: 1, order: 1 });
+schema.index({ parentId: 1, deleted: 1, isActive: 1 });
 
 const Categories = mongoose.model<ICategories>(
   "Category",

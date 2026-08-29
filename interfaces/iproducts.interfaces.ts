@@ -9,10 +9,11 @@ export interface IProduct extends Document {
   condition?: number;
   size?: string;
   images: string[];
-  category: mongoose.Types.ObjectId; // FK nối sang bảng Category
+  category: mongoose.Types.ObjectId;
   seller: mongoose.Types.ObjectId;
   location: string;
   description?: string;
+  material?: string;
   isNewProduct: boolean;
   isFeatured: boolean;
   isActive: boolean;
@@ -21,6 +22,7 @@ export interface IProduct extends Document {
   viewsCount: number;
   likesCount: number;
   salesCount: number;
+  discount: number;
   deleted: boolean;
   createdAt: Date;
   updatedAt: Date;

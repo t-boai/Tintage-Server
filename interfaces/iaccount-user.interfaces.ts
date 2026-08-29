@@ -7,11 +7,13 @@ export interface IAccountUser extends Document {
   avatar?: string;
   isActive: boolean;
   isEmailVerified: boolean;
+  slug: string;
   refreshToken?: string;
   deleted: boolean;
   isVerifiedSeller: boolean;
   sellerRole: SellerRoleType;
   sellerRating: number;
+  reviewCount: number;
   createdAt: Date;
   updatedAt: Date;
 }
