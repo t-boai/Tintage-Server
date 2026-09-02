@@ -1,11 +1,16 @@
-import { DiscountPercent } from "@/helpers/discountPercent.helper";
-import { formatJoinedTime } from "@/helpers/formatJoinedTime";
-import { isActuallyNew } from "@/helpers/isActuallyNew.helper";
-import { AccountRequest } from "@/interfaces/request.interfaces";
-import Heart from "@/models/hearts.models";
-import Product from "@/models/products.models";
 import { Request, Response } from "express";
 import mongoose from "mongoose";
+
+// helpers
+import { isActuallyNew } from "@/helpers/isActuallyNew.helper";
+import { formatJoinedTime } from "@/helpers/formatJoinedTime";
+
+// interfaces
+import { AccountRequest } from "@/interfaces/request.interfaces";
+
+// models
+import Heart from "@/models/hearts.models";
+import Product from "@/models/products.models";
 
 export const productDetail = async (
   req: AccountRequest,
@@ -55,7 +60,7 @@ export const productDetail = async (
       return;
     }
 
-    // Background Non-blocking: Tăng viewsCount bất đồng bộ (Không await)
+    // Background Non-blocking: Tăng viewsCount bất đồng bộ
     Product.updateOne({ _id: product._id }, { $inc: { viewsCount: 1 } }).catch(
       (err) => console.error("Lỗi tăng lượt xem: ", err),
     );
@@ -111,7 +116,7 @@ export const productDetail = async (
       slug: product.slug,
       price: product.price,
       originalPrice: product.originalPrice || 0,
-      discount: DiscountPercent(product.price, product.originalPrice),
+      discount: product.discount || 0,
       condition: product.condition ? `Độ mới ${product.condition}%` : null,
       size: product.size || null,
       images: product.images || [],
@@ -153,6 +158,204 @@ export const productDetail = async (
     });
   } catch (error) {
     console.error("Lỗi sản phẩm chi tiết: ", error);
+    res.status(500).json({ code: "error", message: "Lỗi hệ thống server." });
+  }
+};
+
+export const recommendations = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+    const limit = Math.min(
+      24,
+      Math.max(1, parseInt(req.query.limit as string, 10) || 12),
+    );
+    const skip = (page - 1) * limit;
+
+    const { categoryId, excludeId, sellerId } = req.query;
+
+    let seedNum = 0;
+    if (excludeId && mongoose.Types.ObjectId.isValid(`${excludeId}`)) {
+      const hex = excludeId.toString().slice(-5);
+      seedNum = parseInt(hex, 16) || 0;
+    }
+
+    const ROTATION_WINDOW_SECONDS = 120;
+    const now = Date.now();
+    const timeBucket = Math.floor(now / (ROTATION_WINDOW_SECONDS * 1000));
+    const secondsRemaining =
+      ROTATION_WINDOW_SECONDS -
+      (Math.floor(now / 1000) % ROTATION_WINDOW_SECONDS);
+
+    const matchStage: any = {
+      deleted: false,
+      isActive: true,
+      stock: { $gt: 0 },
+    };
+
+    if (categoryId && mongoose.Types.ObjectId.isValid(`${categoryId}`)) {
+      matchStage.category = new mongoose.Types.ObjectId(`${categoryId}`);
+    }
+    if (sellerId && mongoose.Types.ObjectId.isValid(`${sellerId}`)) {
+      matchStage.seller = new mongoose.Types.ObjectId(`${sellerId}`);
+    }
+    if (excludeId && mongoose.Types.ObjectId.isValid(`${excludeId}`)) {
+      matchStage._id = { $ne: new mongoose.Types.ObjectId(`${excludeId}`) };
+    }
+
+    const result = await Product.aggregate(
+      [
+        { $match: matchStage },
+        {
+          $facet: {
+            metadata: [{ $count: "total" }],
+            data: [
+              {
+                $addFields: {
+                  rotationScore: {
+                    $mod: [
+                      {
+                        $add: [
+                          { $toLong: "$createdAt" },
+                          timeBucket * 1103515245,
+                          seedNum * 99991,
+                        ],
+                      },
+                      1000000,
+                    ],
+                  },
+                },
+              },
+              { $sort: { rotationScore: -1, createdAt: -1 } },
+              { $skip: skip },
+              { $limit: limit },
+              {
+                $lookup: {
+                  from: "categories",
+                  localField: "category",
+                  foreignField: "_id",
+                  as: "categoryInfo",
+                },
+              },
+              {
+                $unwind: {
+                  path: "$categoryInfo",
+                  preserveNullAndEmptyArrays: true,
+                },
+              },
+              {
+                $lookup: {
+                  from: "users",
+                  localField: "seller",
+                  foreignField: "_id",
+                  as: "sellerInfo",
+                },
+              },
+              {
+                $unwind: {
+                  path: "$sellerInfo",
+                  preserveNullAndEmptyArrays: true,
+                },
+              },
+              {
+                $project: {
+                  _id: 1,
+                  brand: 1,
+                  name: 1,
+                  price: 1,
+                  originalPrice: 1,
+                  condition: 1,
+                  size: 1,
+                  material: 1,
+                  image: { $arrayElemAt: ["$images", 0] },
+                  slug: 1,
+                  stock: 1,
+                  location: 1,
+                  salesCount: 1,
+                  likesCount: 1,
+                  isNewProduct: 1,
+                  createdAt: 1,
+                  categoryInfo: { _id: 1, name: 1, slug: 1 },
+                  sellerInfo: {
+                    _id: 1,
+                    slug: 1,
+                    fullName: 1,
+                    avatar: 1,
+                    isVerifiedSeller: 1,
+                    sellerRole: 1,
+                    sellerRating: 1,
+                  },
+                },
+              },
+            ],
+          },
+        },
+      ],
+      { allowDiskUse: true },
+    );
+
+    const totalItems = result[0]?.metadata[0]?.total || 0;
+    const rawProducts = result[0]?.data || [];
+    const totalPages = Math.ceil(totalItems / limit);
+
+    const productsFinal = rawProducts.map((item: any) => ({
+      id: item._id.toString(),
+      brand: item.brand,
+      name: item.name,
+      price: item.price,
+      originalPrice: item.originalPrice || 0,
+      discount: item.discount || 0,
+      condition: item.condition ? `Độ mới ${item.condition}%` : null,
+      size: item.size || null,
+      material: item.material || "",
+      isNew: isActuallyNew(item.isNewProduct, item.createdAt),
+      image: item.image || "",
+      slug: item.slug,
+      stock: item.stock,
+      location: item.location,
+      salesCount: item.salesCount || 0,
+      likesCount: item.likesCount || 0,
+      category: item.categoryInfo
+        ? {
+            id: item.categoryInfo._id.toString(),
+            name: item.categoryInfo.name,
+            slug: item.categoryInfo.slug,
+          }
+        : null,
+      seller: item.sellerInfo
+        ? {
+            id: item.sellerInfo._id.toString(),
+            slug: item.sellerInfo.slug || null,
+            fullName: item.sellerInfo.fullName,
+            avatar: item.sellerInfo.avatar || "",
+            isVerified: item.sellerInfo.isVerifiedSeller || false,
+            role: item.sellerInfo.sellerRole || "individual",
+            rating: item.sellerInfo.sellerRating || 5.0,
+          }
+        : null,
+    }));
+
+    res.setHeader(
+      "Cache-Control",
+      `public, max-age=${Math.max(secondsRemaining, 5)}`,
+    );
+
+    res.status(200).json({
+      code: "success",
+      message: "Lấy gợi ý sản phẩm thành công",
+      pagination: {
+        page,
+        limit,
+        totalItems,
+        totalPages,
+        hasNextPage: page < totalPages,
+      },
+      data: productsFinal,
+    });
+  } catch (error) {
+    console.error("Lỗi lấy gợi ý sản phẩm:", error);
     res.status(500).json({ code: "error", message: "Lỗi hệ thống server." });
   }
 };

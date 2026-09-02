@@ -12,6 +12,6 @@ router.get(
   productControllers.productDetail,
 );
 
-// router.get("/recommendations", productControllers.recommendations);
+router.get("/recommendations", productControllers.recommendations);
 
 export default router;

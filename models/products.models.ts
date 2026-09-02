@@ -75,7 +75,7 @@ const schema = new Schema<IProduct>(
       type: String,
       required: [true, "Vui lòng cung cấp khu vực bán (VD: Hà Nội, TP.HCM)"],
       trim: true,
-      index: true, // Đánh index để lọc theo khu vực (Vd: Tìm quanh Hà Nội)
+      index: true,
     },
     description: {
       type: String,
@@ -118,6 +118,11 @@ const schema = new Schema<IProduct>(
       type: Number,
       default: 0,
     },
+    randomSeed: {
+      type: Number,
+      default: () => Math.random(),
+      index: true,
+    },
     deleted: {
       type: Boolean,
       default: false,
@@ -125,6 +130,18 @@ const schema = new Schema<IProduct>(
   },
   { timestamps: true },
 );
+
+schema.pre("save", async function () {
+  if (this.isModified("price") || this.isModified("originalPrice")) {
+    if (this.originalPrice && this.originalPrice > this.price) {
+      this.discount = Math.round(
+        ((this.originalPrice - this.price) / this.originalPrice) * 100,
+      );
+    } else {
+      this.discount = 0;
+    }
+  }
+});
 
 // Phủ Query Lọc Trang chủ & Danh mục
 schema.index({ category: 1, deleted: 1, isActive: 1, createdAt: -1 });
@@ -135,6 +152,11 @@ schema.index({ seller: 1, deleted: 1, isActive: 1, createdAt: -1 });
 
 // Tối ưu C2C: Phục vụ bộ lọc "Tìm quanh đây" (Lọc category + location + giá)
 schema.index({ location: 1, category: 1, deleted: 1, isActive: 1 });
+
+// Index siêu tốc độ phục vụ tính năng "Gợi ý ngẫu nhiên" sau này
+schema.index({ randomSeed: 1, deleted: 1, isActive: 1 });
+
+schema.index({ discount: -1, deleted: 1, isActive: 1 });
 
 const Product = mongoose.model<IProduct>("Product", schema, "products");
 

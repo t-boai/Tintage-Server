@@ -19,6 +19,7 @@ export interface IProduct extends Document {
   isActive: boolean;
   order: number;
   stock: number;
+  randomSeed: number;
   viewsCount: number;
   likesCount: number;
   salesCount: number;
