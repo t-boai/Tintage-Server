@@ -14,6 +14,8 @@ export interface IProduct extends Document {
   location: string;
   description?: string;
   material?: string;
+  colors: string[];
+  gender: "men" | "women" | "unisex" | "kids";
   isNewProduct: boolean;
   isFeatured: boolean;
   isActive: boolean;

@@ -30,6 +30,17 @@ const schema = new Schema<IProduct>(
       index: true,
     },
     material: { type: String, default: "" },
+    colors: {
+      type: [String],
+      default: [],
+      index: true,
+    },
+    gender: {
+      type: String,
+      enum: ["men", "women", "unisex", "kids"],
+      default: "unisex",
+      index: true,
+    },
     price: {
       type: Number,
       required: [true, "Vui lòng nhập giá bán"],
@@ -143,20 +154,29 @@ schema.pre("save", async function () {
   }
 });
 
-// Phủ Query Lọc Trang chủ & Danh mục
-schema.index({ category: 1, deleted: 1, isActive: 1, createdAt: -1 });
+// 1. Phủ Query Lọc Danh mục kết hợp Giới tính (Trang danh mục thường lọc theo Nam/Nữ)
+schema.index({
+  category: 1,
+  gender: 1,
+  deleted: 1,
+  isActive: 1,
+  createdAt: -1,
+});
+
+// 2. Phủ Query Lọc Trang chủ & Thứ tự ưu tiên
 schema.index({ deleted: 1, isActive: 1, isFeatured: -1, order: 1 });
 
-// Tối ưu C2C: Truy vấn tất cả sản phẩm của 1 Cửa hàng/Người bán cụ thể cực nhanh
+// 3. Tối ưu C2C: Truy vấn sản phẩm của 1 Shop
 schema.index({ seller: 1, deleted: 1, isActive: 1, createdAt: -1 });
 
-// Tối ưu C2C: Phục vụ bộ lọc "Tìm quanh đây" (Lọc category + location + giá)
+// 4. Tối ưu C2C: Lọc theo khu vực quanh đây
 schema.index({ location: 1, category: 1, deleted: 1, isActive: 1 });
 
-// Index siêu tốc độ phục vụ tính năng "Gợi ý ngẫu nhiên" sau này
-schema.index({ randomSeed: 1, deleted: 1, isActive: 1 });
-
+// 5. Index cho bộ lọc Flash Sale / Giảm giá sâu
 schema.index({ discount: -1, deleted: 1, isActive: 1 });
+
+// 6. Index cho phân trang ngẫu nhiên
+schema.index({ randomSeed: 1, deleted: 1, isActive: 1 });
 
 const Product = mongoose.model<IProduct>("Product", schema, "products");
 
