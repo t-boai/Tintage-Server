@@ -4,13 +4,14 @@ import { Request, Response } from "express";
 import Slide from "@/models/slide.models";
 import Categories from "@/models/categories.models";
 import Product from "@/models/products.models";
+import Blog from "@/models/blogs.models";
 
 //moment
 import moment from "moment";
 
 // helpers
 import { isActuallyNew } from "@/helpers/isActuallyNew.helper";
-import Blog from "@/models/blogs.models";
+import { buildCategoryTree } from "@/helpers/buildCategoryTree.helper";
 
 export const slide = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -76,20 +77,14 @@ export const categories = async (
       .sort({ order: 1, createdAt: -1 })
       .lean();
 
-    // Format
-    const categoryFinal = categories.map((item) => ({
-      id: item._id.toString(),
-      name: item.name,
-      image: item.image,
-      href: `/categories/${item.slug}`,
-    }));
+    const categoryTree = buildCategoryTree(categories);
 
     res.setHeader("Cache-Control", "public, max-age=300");
 
     res.status(200).json({
       code: "success",
       message: "Lấy danh sách danh mục nổi bật thành công <3",
-      data: categoryFinal,
+      data: categoryTree,
     });
   } catch (error) {
     console.error("Lỗi lấy danh mục nổi bật:", error);
