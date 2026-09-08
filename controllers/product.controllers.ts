@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 // helpers
 import { isActuallyNew } from "@/helpers/isActuallyNew.helper";
 import { formatJoinedTime } from "@/helpers/formatJoinedTime";
+import { buildCategoryTree } from "@/helpers/buildCategoryTree.helper";
 
 // interfaces
 import { AccountRequest } from "@/interfaces/request.interfaces";
@@ -11,6 +12,7 @@ import { AccountRequest } from "@/interfaces/request.interfaces";
 // models
 import Heart from "@/models/hearts.models";
 import Product from "@/models/products.models";
+import Categories from "@/models/categories.models";
 
 export const productDetail = async (
   req: AccountRequest,
@@ -360,6 +362,341 @@ export const recommendations = async (
     });
   } catch (error) {
     console.error("Lỗi lấy gợi ý sản phẩm:", error);
+    res.status(500).json({ code: "error", message: "Lỗi hệ thống server." });
+  }
+};
+
+export const searchProducts = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  try {
+    // Phân trang
+    const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+    const limit = Math.min(
+      48,
+      Math.max(1, parseInt(req.query.limit as string, 10) || 16),
+    );
+    const skip = (page - 1) * limit;
+
+    const {
+      keyword,
+      category,
+      brands,
+      colors,
+      sizes,
+      genders,
+      condition,
+      minPrice,
+      maxPrice,
+      sort,
+      location,
+      getFilters,
+    } = req.query;
+
+    const isGetFilters = getFilters === "true";
+    const isBroadSearch =
+      !keyword &&
+      !category &&
+      !brands &&
+      !colors &&
+      !sizes &&
+      !genders &&
+      !condition &&
+      !minPrice &&
+      !maxPrice &&
+      !location;
+
+    // Tầng 1: Chỉ chứa Keyword & Trạng thái tồn kho
+    const baseMatchStage: any = {
+      deleted: false,
+      isActive: true,
+      stock: { $gt: 0 },
+    };
+
+    if (keyword && typeof keyword === "string" && keyword.trim() !== "") {
+      const formattedKeyword = keyword
+        .trim()
+        .split(/\s+/)
+        .map((word) => `"${word}"`)
+        .join(" ");
+      baseMatchStage.$text = { $search: formattedKeyword };
+    }
+
+    // Tầng 2: Category Filter
+    const categoryMatchStage: any = {};
+
+    if (category && typeof category === "string") {
+      const isObjectId = mongoose.Types.ObjectId.isValid(category);
+      const catMatch = isObjectId
+        ? { _id: new mongoose.Types.ObjectId(category) }
+        : { slug: category };
+
+      const foundCat = await Categories.findOne(catMatch).select("_id").lean();
+      if (foundCat) {
+        const descendantCats = await Categories.find({
+          "ancestors._id": foundCat._id,
+        })
+          .select("_id")
+          .lean();
+        const allCatIds = [foundCat._id, ...descendantCats.map((c) => c._id)];
+        categoryMatchStage.category = { $in: allCatIds };
+      } else {
+        categoryMatchStage.category = null;
+      }
+    }
+
+    // Tầng 3: Deep Filters - Brands, Colors, Price...
+    const deepFilterMatchStage: any = {};
+
+    if (brands && typeof brands === "string") {
+      deepFilterMatchStage.brand = {
+        $in: brands.split(",").map((b) => b.trim()),
+      };
+    }
+    if (colors && typeof colors === "string") {
+      deepFilterMatchStage.colors = {
+        $in: colors.split(",").map((c) => c.trim().toLowerCase()),
+      };
+    }
+    if (sizes && typeof sizes === "string") {
+      deepFilterMatchStage.size = {
+        $in: sizes.split(",").map((s) => s.trim()),
+      };
+    }
+    if (genders && typeof genders === "string") {
+      const selectedGenders = genders
+        .split(",")
+        .map((g) => g.trim().toLowerCase());
+      if (!selectedGenders.includes("unisex")) selectedGenders.push("unisex");
+      deepFilterMatchStage.gender = { $in: selectedGenders };
+    }
+    if (condition) {
+      deepFilterMatchStage.condition = {
+        $gte: parseInt(condition as string, 10) || 0,
+      };
+    }
+    if (location && typeof location === "string") {
+      deepFilterMatchStage.location = location.trim();
+    }
+    if (minPrice || maxPrice) {
+      deepFilterMatchStage.price = {};
+      if (minPrice)
+        deepFilterMatchStage.price.$gte = parseInt(minPrice as string, 10);
+      if (maxPrice)
+        deepFilterMatchStage.price.$lte = parseInt(maxPrice as string, 10);
+    }
+
+    // Tầng 4: Sort
+    let sortStage: any = { isFeatured: -1, createdAt: -1 };
+
+    if (sort) {
+      switch (sort) {
+        case "price_asc":
+          sortStage = { price: 1, createdAt: -1 };
+          break;
+        case "price_desc":
+          sortStage = { price: -1, createdAt: -1 };
+          break;
+        case "top_sales":
+          sortStage = { salesCount: -1, createdAt: -1 };
+          break;
+        case "discount_desc":
+          sortStage = { discount: -1, createdAt: -1 };
+          break;
+        case "newest":
+          sortStage = { createdAt: -1 };
+          break;
+        case "relevance":
+          if (baseMatchStage.$text)
+            sortStage = { score: { $meta: "textScore" } };
+          else sortStage = { createdAt: -1 };
+          break;
+      }
+    } else if (baseMatchStage.$text) {
+      sortStage = { score: { $meta: "textScore" } };
+    }
+
+    // Tầng 5: Build aggregation pipeline (Selective Faceting)
+    const pipeline: any[] = [{ $match: baseMatchStage }];
+
+    if (baseMatchStage.$text) {
+      pipeline.push(
+        { $addFields: { score: { $meta: "textScore" } } },
+        { $match: { score: { $gt: 0.5 } } },
+      );
+    }
+
+    const facetStage: any = {
+      //  Metadata Sản phẩm: Lọc qua Category + Deep Filters
+      filteredMetadata: [
+        { $match: categoryMatchStage },
+        { $match: deepFilterMatchStage },
+        { $count: "total" },
+      ],
+      // Danh sách Sản phẩm: Lọc qua Category + Deep Filters
+      products: [
+        { $match: categoryMatchStage },
+        { $match: deepFilterMatchStage },
+        { $sort: sortStage },
+        { $skip: skip },
+        { $limit: limit },
+        {
+          $lookup: {
+            from: "users",
+            localField: "seller",
+            foreignField: "_id",
+            as: "sellerInfo",
+          },
+        },
+        { $unwind: { path: "$sellerInfo", preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: 1,
+            brand: 1,
+            name: 1,
+            price: 1,
+            originalPrice: 1,
+            discount: 1,
+            condition: 1,
+            size: 1,
+            material: 1,
+            colors: 1,
+            gender: 1,
+            image: { $arrayElemAt: ["$images", 0] },
+            slug: 1,
+            location: 1,
+            salesCount: 1,
+            likesCount: 1,
+            isNewProduct: 1,
+            createdAt: 1,
+            categoryInfo: { _id: 1, name: 1, slug: 1 },
+            sellerInfo: {
+              _id: 1,
+              slug: 1,
+              fullName: 1,
+              avatar: 1,
+              isVerifiedSeller: 1,
+            },
+          },
+        },
+      ],
+    };
+
+    if (isGetFilters) {
+      // Brands: Bị ảnh hưởng bởi Category, không bị ảnh hưởng bởi Deep Filters
+      facetStage.filterBrands = [
+        { $match: categoryMatchStage },
+        { $group: { _id: "$brand", count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 15 },
+      ];
+
+      // Categories: bỏ qua mảng categories. Đếm full
+      facetStage.filterCategories = [
+        { $group: { _id: "$category", count: { $sum: 1 } } },
+        {
+          $lookup: {
+            from: "categories",
+            localField: "_id",
+            foreignField: "_id",
+            as: "catInfo",
+          },
+        },
+        { $unwind: "$catInfo" },
+        {
+          $project: {
+            _id: 1,
+            name: "$catInfo.name",
+            slug: "$catInfo.slug",
+            parentId: "$catInfo.parentId",
+            ancestors: "$catInfo.ancestors",
+            count: 1,
+          },
+        },
+      ];
+    }
+
+    pipeline.push({ $facet: facetStage });
+
+    const result = await Product.aggregate(pipeline, { allowDiskUse: true });
+
+    // Tầng 6: format
+    const totalItems = result[0]?.filteredMetadata[0]?.total || 0;
+    const rawProducts = result[0]?.products || [];
+    const totalPages = Math.ceil(totalItems / limit);
+
+    const productsFinal = rawProducts.map((item: any) => ({
+      id: item._id.toString(),
+      brand: item.brand,
+      name: item.name,
+      price: item.price,
+      originalPrice: item.originalPrice || 0,
+      discountPercent: item.discount || 0,
+      condition: item.condition ? `Độ mới ${item.condition}%` : null,
+      size: item.size || null,
+      material: item.material || "",
+      colors: item.colors || [],
+      gender: item.gender || "unisex",
+      isNew: isActuallyNew(item.isNewProduct, item.createdAt),
+      image: item.image || "",
+      slug: item.slug,
+      location: item.location,
+      salesCount: item.salesCount || 0,
+      likesCount: item.likesCount || 0,
+      seller: item.sellerInfo
+        ? { ...item.sellerInfo, id: item.sellerInfo._id.toString() }
+        : null,
+    }));
+
+    let sidebarFilters = null;
+    if (isGetFilters) {
+      const formattedBrands =
+        result[0]?.filterBrands?.map((b: any) => ({
+          name: b._id,
+          count: b.count,
+        })) || [];
+      const rawFacetCats = result[0]?.filterCategories || [];
+
+      const allCategories = await Categories.find({
+        deleted: false,
+        isActive: true,
+      }).lean();
+
+      const facetCounts = rawFacetCats.map((facet: any) => ({
+        catId: facet._id.toString(),
+        count: facet.count,
+      }));
+
+      const categoryTree = buildCategoryTree(allCategories, facetCounts);
+
+      sidebarFilters = { brands: formattedBrands, categories: categoryTree };
+    }
+
+    if (isBroadSearch && page === 1) {
+      res.setHeader(
+        "Cache-Control",
+        "public, max-age=300, stale-while-revalidate=120",
+      );
+    } else {
+      res.setHeader("Cache-Control", "no-store");
+    }
+
+    res.status(200).json({
+      code: "success",
+      message: "Tìm kiếm sản phẩm thành công <3",
+      pagination: {
+        page,
+        limit,
+        totalItems,
+        totalPages,
+        hasNextPage: page < totalPages,
+      },
+      filtersInfo: sidebarFilters,
+      data: productsFinal,
+    });
+  } catch (error) {
+    console.error("Lỗi Api tìm kiếm sản phẩm:", error);
     res.status(500).json({ code: "error", message: "Lỗi hệ thống server." });
   }
 };

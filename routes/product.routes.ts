@@ -13,5 +13,10 @@ router.get(
 );
 
 router.get("/recommendations", productControllers.recommendations);
+router.get(
+  "/search",
+  optionalAuthMiddleware,
+  productControllers.searchProducts,
+);
 
 export default router;

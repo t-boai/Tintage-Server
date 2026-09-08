@@ -154,7 +154,16 @@ schema.pre("save", async function () {
   }
 });
 
-// 1. Phủ Query Lọc Danh mục kết hợp Giới tính (Trang danh mục thường lọc theo Nam/Nữ)
+// text index cho tính năng Search Keyword
+schema.index(
+  { name: "text", brand: "text", description: "text" },
+  {
+    weights: { name: 10, brand: 5, description: 1 },
+    name: "ProductTextIndex",
+  },
+);
+
+// 1. Phủ Query Lọc Danh mục kết hợp Giới tính
 schema.index({
   category: 1,
   gender: 1,
@@ -163,7 +172,7 @@ schema.index({
   createdAt: -1,
 });
 
-// 2. Phủ Query Lọc Trang chủ & Thứ tự ưu tiên
+// 2. Phủ Query Lọc Trang chủ và Thứ tự ưu tiên
 schema.index({ deleted: 1, isActive: 1, isFeatured: -1, order: 1 });
 
 // 3. Tối ưu C2C: Truy vấn sản phẩm của 1 Shop
