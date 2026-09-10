@@ -26,6 +26,7 @@ export interface IProduct extends Document {
   likesCount: number;
   salesCount: number;
   discount: number;
+  hotScore: number;
   deleted: boolean;
   createdAt: Date;
   updatedAt: Date;

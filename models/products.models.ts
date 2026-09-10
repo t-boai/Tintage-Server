@@ -109,6 +109,10 @@ const schema = new Schema<IProduct>(
       type: Number,
       default: 0,
     },
+    hotScore: {
+      type: Number,
+      default: 0,
+    },
     stock: {
       type: Number,
       default: 1,
@@ -186,6 +190,19 @@ schema.index({ discount: -1, deleted: 1, isActive: 1 });
 
 // 6. Index cho phân trang ngẫu nhiên
 schema.index({ randomSeed: 1, deleted: 1, isActive: 1 });
+
+// tối ưu cho productsFeatured
+schema.index({
+  deleted: 1,
+  isActive: 1,
+  stock: 1,
+  isFeatured: -1,
+  order: 1,
+  hotScore: -1,
+});
+
+// tơi ưu cho dailyDiscover
+schema.index({ deleted: 1, isActive: 1, stock: 1, hotScore: -1 });
 
 const Product = mongoose.model<IProduct>("Product", schema, "products");
 

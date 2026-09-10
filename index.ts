@@ -22,6 +22,10 @@ app.use(
 import { connect } from "@/config/database.config";
 connect();
 
+// khởi tạo cronjob chạy ngầm sau khi connect DB
+import { initHotScoreCronJob } from "@/jobs/updateHotScore.job";
+initHotScoreCronJob();
+
 // Allow send data JSON
 app.use(express.json());
 

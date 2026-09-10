@@ -112,18 +112,6 @@ export const productsFeatured = async (
         },
       },
       {
-        $addFields: {
-          // Công thức: views*1 + likes*3 + sales*5
-          hotScore: {
-            $add: [
-              { $multiply: [{ $ifNull: ["$viewsCount", 0] }, 1] },
-              { $multiply: [{ $ifNull: ["$likesCount", 0] }, 3] },
-              { $multiply: [{ $ifNull: ["$salesCount", 0] }, 5] },
-            ],
-          },
-        },
-      },
-      {
         $sort: {
           isFeatured: -1, // true lên trước
           order: 1, // order nhỏ lên trước
@@ -142,12 +130,8 @@ export const productsFeatured = async (
         },
       },
       {
-        $unwind: {
-          path: "$categoryInfo",
-          preserveNullAndEmptyArrays: true,
-        },
+        $unwind: { path: "$categoryInfo", preserveNullAndEmptyArrays: true },
       },
-      //
       {
         $lookup: {
           from: "users",
@@ -179,10 +163,7 @@ export const productsFeatured = async (
         },
       },
       {
-        $unwind: {
-          path: "$sellerInfo",
-          preserveNullAndEmptyArrays: true,
-        },
+        $unwind: { path: "$sellerInfo", preserveNullAndEmptyArrays: true },
       },
     ]);
 
@@ -266,22 +247,6 @@ export const dailyDiscover = async (
           isActive: true,
         },
       },
-      // Tối ưu Index - chỉ quét 200 sản phẩm mới nhất
-      { $sort: { createdAt: -1 } },
-      { $limit: 200 },
-      // Tính điểm HotScore
-      {
-        $addFields: {
-          hotScore: {
-            $add: [
-              { $multiply: [{ $ifNull: ["$viewsCount", 0] }, 1] },
-              { $multiply: [{ $ifNull: ["$likesCount", 0] }, 3] },
-              { $multiply: [{ $ifNull: ["$salesCount", 0] }, 5] },
-            ],
-          },
-        },
-      },
-      // Giữ lại 50 sản phẩm xuất sắc nhất
       { $sort: { hotScore: -1 } },
       { $limit: 50 },
       // Lấy random 12 sp trong 50 sp
