@@ -22,6 +22,12 @@ router.delete(
   cartControllers.deleteItem,
 );
 
+router.post(
+  "/delete-multiple",
+  middleWares.verifyToken,
+  cartControllers.deleteMultipleItems,
+);
+
 router.delete(
   "/clear-cart",
   middleWares.verifyToken,

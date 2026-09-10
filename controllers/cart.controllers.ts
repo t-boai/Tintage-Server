@@ -408,6 +408,62 @@ export const deleteItem = async (
   }
 };
 
+export const deleteMultipleItems = async (
+  req: AccountRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const userId = req.account?.id;
+    const { productIds } = req.body;
+
+    if (!Array.isArray(productIds) || productIds.length === 0) {
+      res.status(400).json({
+        code: "error",
+        message: "Danh sách sản phẩm cần xóa không hợp lệ.",
+      });
+      return;
+    }
+
+    // Chuyể sang ObjectId
+    const validObjectIds = productIds
+      .filter((id: any) => mongoose.Types.ObjectId.isValid(`${id}`))
+      .map((id: any) => new mongoose.Types.ObjectId(`${id}`));
+
+    if (validObjectIds.length === 0) {
+      res.status(400).json({
+        code: "error",
+        message: "Không có ID sản phẩm nào hợp lệ để xóa.",
+      });
+      return;
+    }
+
+    const result = await Cart.updateOne(
+      { user: userId },
+      {
+        $pull: {
+          items: { product: { $in: validObjectIds } },
+        },
+      },
+    );
+
+    if (result.modifiedCount === 0) {
+      res.status(404).json({
+        code: "error",
+        message: "Các sản phẩm này không tồn tại trong giỏ hàng.",
+      });
+      return;
+    }
+
+    res.status(200).json({
+      code: "success",
+      message: `Đã xóa ${validObjectIds.length} sản phẩm khỏi giỏ hàng.`,
+    });
+  } catch (error) {
+    console.error("Lỗi khi xóa nhiều sản phẩm: ", error);
+    res.status(500).json({ code: "error", message: "Lỗi hệ thống server." });
+  }
+};
+
 export const clearCart = async (
   req: AccountRequest,
   res: Response,
