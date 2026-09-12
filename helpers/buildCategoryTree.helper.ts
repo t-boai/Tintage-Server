@@ -13,7 +13,6 @@ export const buildCategoryTree = (
       isFeatured: cat.isFeatured || false,
       parentId: cat.parentId ? cat.parentId.toString() : null,
       count: 0,
-      disabled: false,
       children: [],
     });
   });
@@ -46,11 +45,6 @@ export const buildCategoryTree = (
 
   allCategories.forEach((cat) => {
     const node = catMap.get(cat._id.toString());
-
-    // Nếu count = 0, gán cờ disabled = true cho FE xử lý CSS
-    if (node.count === 0) {
-      node.disabled = true;
-    }
 
     if (node.parentId) {
       if (node.count === 0) return;

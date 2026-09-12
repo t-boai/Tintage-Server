@@ -366,21 +366,37 @@ export const recommendations = async (
   }
 };
 
-let cachedCategories: any[] | null = null;
+let cachedCategories: any[] = [];
+let cachedCategoryTree: any[] = [];
 let lastCacheTime = 0;
 const CACHE_TTL = 5 * 60 * 1000;
 
-const getCachedCategories = async () => {
+const refreshCacheIfNeeded = async () => {
   const now = Date.now();
-  if (!cachedCategories || now - lastCacheTime > CACHE_TTL) {
+  if (cachedCategories.length === 0 || now - lastCacheTime > CACHE_TTL) {
+    // Lấy toàn bộ danh mục tĩnh
     cachedCategories = await Categories.find({
       deleted: false,
       isActive: true,
     }).lean();
+
+    // Đếm tổng số lượng sản phẩm của từng danh mục
+    const rawFacetCats = await Product.aggregate([
+      { $match: { deleted: false, isActive: true, stock: { $gt: 0 } } },
+      { $group: { _id: "$category", count: { $sum: 1 } } },
+    ]);
+
+    const facetCounts = rawFacetCats.map((facet: any) => ({
+      catId: facet._id?.toString(),
+      count: facet.count,
+    }));
+
+    // Ráp cây và lưu thẳng vào RAM
+    cachedCategoryTree = buildCategoryTree(cachedCategories, facetCounts);
+
     lastCacheTime = now;
-    console.log("Đã tải lại danh mục lên RAM!");
+    console.log("Đã cập nhật Cây Danh Mục và Tổng Số Lượng!");
   }
-  return cachedCategories;
 };
 
 export const searchProducts = async (
@@ -388,6 +404,7 @@ export const searchProducts = async (
   res: Response,
 ): Promise<void> => {
   try {
+    // Phân trang
     const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
     const limit = Math.min(
       48,
@@ -423,9 +440,10 @@ export const searchProducts = async (
       !maxPrice &&
       !location;
 
-    // Lấy danh mục từ ram
-    const allCategories = await getCachedCategories();
+    // Cache
+    await refreshCacheIfNeeded();
 
+    // Chỉ chứa Keyword & Trạng thái tồn kho
     const baseMatchStage: any = {
       deleted: false,
       isActive: true,
@@ -440,19 +458,16 @@ export const searchProducts = async (
       baseMatchStage.$text = { $search: formattedKeyword };
     }
 
-    // Category Filter (Xử lý trên RAM)
+    // lọc danh mục
     const categoryMatchStage: any = {};
     if (category && typeof category === "string") {
       const isObjectId = mongoose.Types.ObjectId.isValid(category);
-
-      // Tìm cat trực tiếp trong mảng RAM
-      const foundCat = allCategories.find((c: any) =>
+      const foundCat = cachedCategories.find((c: any) =>
         isObjectId ? c._id.toString() === category : c.slug === category,
       );
 
       if (foundCat) {
-        // Tìm con cháu trực tiếp trong RAM
-        const descendantCats = allCategories.filter(
+        const descendantCats = cachedCategories.filter(
           (c: any) =>
             c.ancestors &&
             c.ancestors.some(
@@ -508,7 +523,8 @@ export const searchProducts = async (
         deepFilterMatchStage.price.$lte = parseInt(maxPrice as string, 10);
     }
 
-    // Sắp xếp
+    // sort
+
     let sortStage: any = { isFeatured: -1, createdAt: -1 };
     if (sort) {
       switch (sort) {
@@ -542,10 +558,10 @@ export const searchProducts = async (
       ...deepFilterMatchStage,
     };
 
-    //  Đếm tổng số
+    // Đếm tổng số
     const countPromise = Product.countDocuments(fullMatchStage);
 
-    // Lấy dữ liệu Sản phẩm
+    // Lấy danh sách sản phẩm
     const productPipeline: any[] = [{ $match: fullMatchStage }];
     if (baseMatchStage.$text)
       productPipeline.push(
@@ -598,10 +614,8 @@ export const searchProducts = async (
     );
     const productPromise = Product.aggregate(productPipeline);
 
-    // Facet Brands
-    let brandPromise = Promise.resolve([]);
-    let categoryFacetPromise = Promise.resolve([]);
-
+    // Đếm thương hiệu động theo Keyword và Danh mục
+    let brandPromise: Promise<any> = Promise.resolve([]);
     if (isGetFilters) {
       const brandPipeline: any[] = [
         { $match: { ...baseMatchStage, ...categoryMatchStage } },
@@ -617,35 +631,21 @@ export const searchProducts = async (
         { $limit: 15 },
       );
       brandPromise = Product.aggregate(brandPipeline);
-
-      // Facet Categories
-      const catFacetPipeline: any[] = [{ $match: baseMatchStage }];
-      if (baseMatchStage.$text)
-        catFacetPipeline.push(
-          { $addFields: { score: { $meta: "textScore" } } },
-          { $match: { score: { $gt: 0.5 } } },
-        );
-      catFacetPipeline.push({
-        $group: { _id: "$category", count: { $sum: 1 } },
-      });
-      categoryFacetPromise = Product.aggregate(catFacetPipeline);
     }
-    const [totalItems, rawProducts, rawBrands, rawFacetCats] =
-      await Promise.all([
-        countPromise,
-        productPromise,
-        brandPromise,
-        categoryFacetPromise,
-      ]);
 
-    // format và tự động map id -> tên bằng từ điển ram
+    const [totalItems, rawProducts, rawBrands] = await Promise.all([
+      countPromise,
+      productPromise,
+      brandPromise,
+    ]);
+
     const totalPages = Math.ceil(totalItems / limit);
-    const catDict = new Map(allCategories.map((c) => [c._id.toString(), c]));
+    const catDict = new Map(cachedCategories.map((c) => [c._id.toString(), c]));
 
     const productsFinal = rawProducts.map((item: any) => {
       const catObj = catDict.get(item.category?.toString());
       return {
-        id: item._id.toString(),
+        id: item._id?.toString() || "",
         brand: item.brand,
         name: item.name,
         price: item.price,
@@ -657,7 +657,7 @@ export const searchProducts = async (
         colors: item.colors || [],
         gender: item.gender || "unisex",
         isNew: isActuallyNew(item.isNewProduct, item.createdAt),
-        image: item.image || "",
+        image: item.images?.[0] || item.image || "",
         slug: item.slug,
         location: item.location,
         salesCount: item.salesCount || 0,
@@ -666,23 +666,21 @@ export const searchProducts = async (
           ? { _id: catObj._id, name: catObj.name, slug: catObj.slug }
           : null,
         seller: item.sellerInfo
-          ? { ...item.sellerInfo, id: item.sellerInfo._id.toString() }
+          ? { ...item.sellerInfo, id: item.sellerInfo._id?.toString() }
           : null,
       };
     });
 
     let sidebarFilters = null;
     if (isGetFilters) {
-      const facetCounts = rawFacetCats.map((facet: any) => ({
-        catId: facet._id?.toString(),
-        count: facet.count,
-      }));
-      const categoryTree = buildCategoryTree(allCategories, facetCounts);
       const formattedBrands = rawBrands.map((b: any) => ({
         name: b._id,
         count: b.count,
       }));
-      sidebarFilters = { brands: formattedBrands, categories: categoryTree };
+      sidebarFilters = {
+        brands: formattedBrands,
+        categories: cachedCategoryTree,
+      };
     }
 
     if (isBroadSearch && page === 1)
