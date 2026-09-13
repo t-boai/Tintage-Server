@@ -24,7 +24,7 @@ export const myCart = async (
           "brand name slug price originalPrice images condition size stock deleted isActive seller",
         populate: {
           path: "seller",
-          select: "fullName avatar isVerifiedSeller sellerRole",
+          select: "fullName slug avatar isVerifiedSeller sellerRole",
         },
       })
       .lean();
@@ -74,6 +74,7 @@ export const myCart = async (
               ? {
                   id: p.seller._id.toString(),
                   fullName: p.seller.fullName,
+                  slug: p.seller.slug,
                   avatar: p.seller.avatar || "",
                   isVerifiedSeller: p.seller.isVerifiedSeller || false,
                   sellerRole: p.seller.sellerRole || "individual",
