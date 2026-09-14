@@ -1,6 +1,5 @@
 // Setup Env
-import dotenv from "dotenv";
-dotenv.config();
+import "dotenv/config";
 
 import express from "express";
 
@@ -21,6 +20,10 @@ app.use(
 // Connect DB
 import { connect } from "@/config/database.config";
 connect();
+
+// redis
+import { connectRedis } from "@/config/redis.config";
+connectRedis();
 
 // khởi tạo cronjob chạy ngầm sau khi connect DB
 import { initHotScoreCronJob } from "@/jobs/updateHotScore.job";
