@@ -7,6 +7,7 @@ import homeRoutes from "@/routes/home.routes";
 import heartRoutes from "@/routes/heart.routes";
 import cartRoutes from "@/routes/cart.routes";
 import productRoutes from "@/routes/product.routes";
+import checkoutRoutes from "@/routes/checkout.routes";
 
 const router: Router = Router();
 
@@ -21,5 +22,6 @@ router.use("/home", homeRoutes);
 router.use("/heart", heartRoutes);
 router.use("/cart", cartRoutes);
 router.use("/product", productRoutes);
+router.use("/checkout", checkoutRoutes);
 
 export default router;
