@@ -9,9 +9,17 @@ import bcrypt from "bcryptjs";
 // JWT
 import jwt from "jsonwebtoken";
 
+// validates
+import { addAddressSchema } from "@/validates/addAddressSchema.validate";
+
+// mongoose
+import mongoose from "mongoose";
+
+// configs
+import { REFRESH_COOKIE_OPTIONS } from "@/config/refreshCookie-option.config";
+
 // Interface
 import { AccountRequest } from "@/interfaces/request.interfaces";
-import { REFRESH_COOKIE_OPTIONS } from "@/config/refreshCookie-option.config";
 
 export const registerPost = async (
   req: Request,
@@ -175,9 +183,165 @@ export const profile = async (
   req: AccountRequest,
   res: Response,
 ): Promise<void> => {
+  const userId = req.account?.id;
+
+  const userAddress = await AccountUser.findById(userId)
+    .select("address")
+    .lean();
+
+  const formattedAddresses = (userAddress?.address || []).map((addr: any) => ({
+    ...addr,
+    id: addr._id.toString(),
+  }));
+
   res.status(200).json({
     code: "success",
     message: "Lấy thông tin thành công <3",
-    data: req.account,
+    data: {
+      ...req.account,
+      address: formattedAddresses,
+    },
   });
 };
+
+const MAX_address = 5;
+
+export const addAddress = async (
+  req: AccountRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const userId = req.account?.id;
+    if (!userId) {
+      res.status(401).json({ code: "error", message: "Vui lòng đăng nhập." });
+      return;
+    }
+
+    // Validate
+    const parseResult = addAddressSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      res.status(400).json({
+        code: "error",
+        message:
+          parseResult.error.issues[0]?.message || "Dữ liệu không hợp lệ.",
+      });
+      return;
+    }
+
+    const { isDefault, province, district, ward, street, ...restAddressData } =
+      parseResult.data;
+
+    const fullAddress = `${street}, ${ward}, ${district}, ${province}`;
+
+    const newAddressId = new mongoose.Types.ObjectId();
+    const newAddress = {
+      _id: newAddressId,
+      ...restAddressData,
+      province,
+      district,
+      ward,
+      street,
+      fullAddress,
+      isDefault,
+    };
+
+    if (isDefault) {
+      const updatedUser = await AccountUser.findOneAndUpdate(
+        {
+          _id: userId,
+          $expr: {
+            $lt: [{ $size: { $ifNull: ["$address", []] } }, MAX_address],
+          },
+        },
+        [
+          {
+            $set: {
+              address: {
+                $concatArrays: [
+                  {
+                    $map: {
+                      input: { $ifNull: ["$address", []] },
+                      as: "addr",
+                      in: { $mergeObjects: ["$$addr", { isDefault: false }] },
+                    },
+                  },
+                  [{ ...newAddress, isDefault: true }],
+                ],
+              },
+            },
+          },
+        ],
+        { new: false, updatePipeline: true },
+      );
+
+      if (!updatedUser) {
+        return handleFailedUpdate(userId, res);
+      }
+    } else {
+      const pushResult = await AccountUser.findOneAndUpdate(
+        {
+          _id: userId,
+          "address.0": { $exists: true },
+          $expr: { $lt: [{ $size: "$address" }, MAX_address] },
+        },
+        {
+          $push: { address: { ...newAddress, isDefault: false } },
+        },
+        { new: false },
+      );
+
+      if (!pushResult) {
+        const firstInsert = await AccountUser.findOneAndUpdate(
+          {
+            _id: userId,
+            $or: [{ address: { $size: 0 } }, { address: { $exists: false } }],
+          },
+          {
+            $push: { address: { ...newAddress, isDefault: true } },
+          },
+          { new: false },
+        );
+
+        if (!firstInsert) {
+          return handleFailedUpdate(userId, res);
+        }
+
+        newAddress.isDefault = true;
+      }
+    }
+
+    res.status(201).json({
+      code: "success",
+      message: "Thêm địa chỉ thành công.",
+      data: newAddress,
+    });
+  } catch (error: any) {
+    console.error("Lỗi khi thêm địa chỉ: ", error.message || error);
+    console.error("Lỗi khi thêm địa chỉ:", error);
+    res.status(500).json({ code: "error", message: "Lỗi hệ thống." });
+  }
+};
+
+async function handleFailedUpdate(
+  userId: string,
+  res: Response,
+): Promise<void> {
+  const user = await AccountUser.findById(userId).select("address").lean();
+  if (!user) {
+    res
+      .status(404)
+      .json({ code: "error", message: "Không tìm thấy tài khoản." });
+    return;
+  }
+  if ((user.address?.length || 0) >= MAX_address) {
+    res.status(400).json({
+      code: "error",
+      message: `Bạn chỉ được tạo tối đa ${MAX_address} địa chỉ. Vui lòng xóa bớt địa chỉ cũ.`,
+    });
+    return;
+  }
+  res.status(409).json({
+    code: "error",
+    message: "Thao tác bị gián đoạn, vui lòng thử lại.",
+  });
+}

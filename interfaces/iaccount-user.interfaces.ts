@@ -9,6 +9,7 @@ export interface IAccountUser extends Document {
   isEmailVerified: boolean;
   slug: string;
   refreshToken?: string;
+  address?: string[];
   deleted: boolean;
   isVerifiedSeller: boolean;
   sellerRole: SellerRoleType;

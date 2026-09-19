@@ -33,20 +33,15 @@ export const verifyToken = async (
       process.env.JWT_ACCESS_SECRET as string,
     ) as jwt.JwtPayload;
 
-    const { id, email } = decoded;
-    let account = null;
-
-    const existAccount = await AccountUser.findOne({
-      _id: id,
+    const account = await AccountUser.findOne({
+      _id: decoded.id,
       deleted: false,
       isActive: true,
     })
-      .select("-password -refreshToken -createdAt -updatedAt -__v")
+      .select("_id fullName email phone avatar isActive isEmailVerified")
       .lean();
 
-    account = existAccount;
-
-    if (!account || account.email !== email) {
+    if (!account || account.email !== decoded.email) {
       res.status(401).json({
         code: "error",
         message: "Tài khoản không tồn tại hoặc đã bị khóa <3",

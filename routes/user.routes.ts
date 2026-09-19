@@ -11,5 +11,10 @@ const router = Router();
 router.post("/register", userControllers.registerPost);
 router.post("/login", userControllers.loginPost);
 router.get("/profile", authMiddlewares.verifyToken, userControllers.profile);
+router.post(
+  "/addAddress",
+  authMiddlewares.verifyToken,
+  userControllers.addAddress,
+);
 
 export default router;

@@ -6,6 +6,17 @@ import { IAccountUser } from "@/interfaces/iaccount-user.interfaces";
 const slug = require("mongoose-slug-updater");
 mongoose.plugin(slug);
 
+const addressSchema = new mongoose.Schema({
+  fullName: { type: String, required: true, trim: true },
+  phone: { type: String, required: true, trim: true },
+  province: { type: String, required: true, trim: true },
+  district: { type: String, required: true, trim: true },
+  ward: { type: String, required: true, trim: true },
+  fullAddress: { type: String, required: true, trim: true },
+  street: { type: String, required: true, trim: true },
+  isDefault: { type: Boolean, default: false },
+});
+
 const schema = new mongoose.Schema<IAccountUser>(
   {
     fullName: {
@@ -51,6 +62,10 @@ const schema = new mongoose.Schema<IAccountUser>(
     isEmailVerified: {
       type: Boolean,
       default: false,
+    },
+    address: {
+      type: [addressSchema],
+      default: [],
     },
     refreshToken: {
       type: String,
