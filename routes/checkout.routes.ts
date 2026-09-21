@@ -14,10 +14,16 @@ router.post(
   checkoutControllers.initCheckoutSession,
 );
 
-// router.get(
-//   "/session/:token",
-//   middleWares.verifyToken,
-//   checkoutControllers.getCheckoutSession,
-// );
+router.get(
+  "/session/:token",
+  middleWares.verifyToken,
+  checkoutControllers.getCheckoutSession,
+);
+
+router.patch(
+  "/session/:token/shipping",
+  middleWares.verifyToken,
+  checkoutControllers.updateCheckoutShippingPatch,
+);
 
 export default router;
