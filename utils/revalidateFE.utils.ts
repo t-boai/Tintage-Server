@@ -1,53 +1,66 @@
-const revalidateTimeouts: Record<string, NodeJS.Timeout> = {};
+import { redisClient } from "@/config/redis.config";
 
-export const triggerFrontendRevalidate = (
+export const triggerFullRevalidate = async (
   tag: string,
-  delay: number = 30000,
-) => {
-  // Nếu đang có 1 luồng đếm ngược rồi thì BỎ QUA, không set lại nữa
-  if (revalidateTimeouts[tag]) {
-    return; // Kệ cho nó chạy hết delay rồi nó tự clear
-  }
+  redisKeys: string[] = [],
+  webhookCooldownSeconds: number = 2,
+): Promise<void> => {
+  try {
+    // xóa redis
+    if (redisKeys.length > 0) {
+      await Promise.allSettled(redisKeys.map((k) => redisClient.del(k)));
+    }
 
-  // Bắt đầu đếm ngược 'delay' (30 giây)
-  revalidateTimeouts[tag] = setTimeout(() => {
+    // Nếu trong 2s có 1 webhook bắn đi rồi thì không bắn thêm nữa
+    const webhookLockKey = `throttle:revalidate:webhook:${tag}`;
+    const canCallWebhook = await redisClient.set(webhookLockKey, "LOCKED", {
+      NX: true,
+      EX: webhookCooldownSeconds,
+    });
+
+    if (!canCallWebhook) {
+      return;
+    }
+
+    // bắn webhook sang next
     const feUrl = process.env.NEXT_PUBLIC_FE_URL;
     const secret = process.env.REVALIDATE_SECRET_TOKEN;
 
     if (!feUrl || !secret) {
       console.warn(
-        "[Revalidate] Thiếu biến môi trường FE_URL hoặc SECRET_TOKEN",
+        "Revalidate: Thiếu biến môi trường FE_URL hoặc SECRET_TOKEN",
       );
       return;
     }
 
-    const url = `${feUrl}/api/revalidate`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
 
-    fetch(url, {
+    fetch(`${feUrl}/api/revalidate`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-revalidate-secret": secret,
       },
       body: JSON.stringify({ tag }),
+      signal: controller.signal,
     })
       .then(async (res) => {
+        clearTimeout(timeoutId);
         if (!res.ok) {
           const err = await res.text();
-          console.error(`[Revalidate Error] Tag: ${tag} -`, err);
+          console.error(`Revalidate Next.js Error Tag: ${tag} -`, err);
         } else {
-          console.log(`[Revalidate Success] Tag: ${tag} cleared on Frontend.`);
+          console.log(
+            `Revalidate Next.js Success:  Đã purge CDN cho tag: ${tag}`,
+          );
         }
       })
       .catch((error) => {
-        console.error(
-          `[Revalidate Failed] Network Error for tag ${tag}:`,
-          error.message,
-        );
-      })
-      .finally(() => {
-        // Chạy xong thì xóa cờ, lúc này các request tiếp theo mới được phép tạo timeout mới
-        delete revalidateTimeouts[tag];
+        clearTimeout(timeoutId);
+        console.error(`Revalidate Lỗi Mạng:`, error.message);
       });
-  }, delay);
+  } catch (error) {
+    console.error("Revalidate Lỗi Hệ Thống:", error);
+  }
 };

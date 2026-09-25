@@ -3,29 +3,34 @@ const inflightRequests = new Map<string, Promise<any>>();
 export const runWithSingleflight = async <T>(
   key: string,
   fn: () => Promise<T>,
-  timeoutMs: number = 4000,
+  timeoutMs: number = 5000,
 ): Promise<T> => {
   if (inflightRequests.has(key)) {
     return inflightRequests.get(key) as Promise<T>;
   }
 
   const executionPromise = new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => {
+    let timer: NodeJS.Timeout | null = setTimeout(() => {
       inflightRequests.delete(key);
       reject(
-        new Error(
-          `Singleflight quá thời hạn Key: ${key} vượt quá ${timeoutMs}ms`,
-        ),
+        new Error(`Singleflight Timeout Key: ${key} vượt quá ${timeoutMs}ms`),
       );
     }, timeoutMs);
 
-    fn()
+    Promise.resolve()
+      .then(() => fn())
       .then((res) => {
-        clearTimeout(timer);
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
         resolve(res);
       })
       .catch((err) => {
-        clearTimeout(timer);
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
         reject(err);
       })
       .finally(() => {
