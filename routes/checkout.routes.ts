@@ -26,10 +26,4 @@ router.patch(
   checkoutControllers.updateCheckoutShippingPatch,
 );
 
-router.post(
-  "/place-order/:token",
-  middleWares.verifyToken,
-  checkoutControllers.placeOrder,
-);
-
 export default router;
