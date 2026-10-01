@@ -14,4 +14,22 @@ router.post(
   orderControllers.placeOrder,
 );
 
+router.post(
+  "/:orderCode/retry-payment",
+  authMiddleWares.verifyToken,
+  orderControllers.retryPayment,
+);
+
+router.get(
+  "/:orderCode/sync-status",
+  authMiddleWares.verifyToken,
+  orderControllers.syncPaymentStatus,
+);
+
+router.get(
+  "/my-pending-order",
+  authMiddleWares.verifyToken,
+  orderControllers.getMyPendingOrder,
+);
+
 export default router;

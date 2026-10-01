@@ -14,6 +14,7 @@ const PaymentTransactionSchema = new Schema<IPaymentTransaction>(
       required: true,
     },
     transactionId: { type: String, default: "" },
+    gatewayReference: { type: String, default: "" },
     amount: { type: Number, required: true },
     status: {
       type: String,

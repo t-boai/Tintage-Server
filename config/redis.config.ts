@@ -19,3 +19,11 @@ export const connectRedis = async () => {
     console.error("Redis Không thể khởi động:", error);
   }
 };
+
+export const SAFE_UNLOCK_LUA = `
+  if redis.call("get",KEYS[1]) == ARGV[1] then
+      return redis.call("del",KEYS[1])
+  else
+      return 0
+  end
+`;

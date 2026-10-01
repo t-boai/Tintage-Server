@@ -1,6 +1,8 @@
 // Setup Env
 import "dotenv/config";
 
+import "@/queues/orderExpiration.queue";
+
 import express from "express";
 
 const app = express();

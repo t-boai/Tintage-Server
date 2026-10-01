@@ -7,6 +7,7 @@ export interface IPaymentTransaction extends Document {
   provider: "COD" | "MOMO" | "VNPAY" | "CREDIT_CARD";
   transactionId: string;
   amount: number;
+  gatewayReference: string;
   status: "PENDING" | "SUCCESS" | "FAILED" | "REFUNDED";
   gatewayResponse: any;
 }
