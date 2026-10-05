@@ -14,7 +14,7 @@ app.use(
   cors({
     origin: "http://localhost:3000",
     methods: ["GET", "PUT", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-idempotency-key"],
     credentials: true, //Cho phép gửi cookie
   }),
 );
