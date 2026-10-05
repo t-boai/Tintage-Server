@@ -59,6 +59,25 @@ export const placeOrder = async (
     return;
   }
 
+  const idempotencyKey = req.headers["x-idempotency-key"];
+
+  if (!idempotencyKey || typeof idempotencyKey !== "string") {
+    res.status(400).json({
+      code: "error",
+      message: "Thiếu Idempotency-Key trên Header.",
+    });
+    return;
+  }
+
+  const idemRedisKey = `idem:order:${userId}:${idempotencyKey}`;
+  const cachedResponse = await redisClient.get(idemRedisKey);
+
+  if (cachedResponse) {
+    console.log(`[Idempotency] Phục hồi kết quả cũ cho key: ${idempotencyKey}`);
+    res.status(200).json(JSON.parse(cachedResponse));
+    return;
+  }
+
   const parseResult = placeOrderSchema.safeParse(req.body);
   if (!parseResult.success) {
     res.status(400).json({
@@ -69,7 +88,6 @@ export const placeOrder = async (
   }
   const { paymentMethod, notes } = parseResult.data;
 
-  // Khóa Idemptency
   const lockKey = `lock:place_order:${token}`;
   const lockIdentifier = randomUUID();
 
@@ -85,12 +103,10 @@ export const placeOrder = async (
     return;
   }
 
-  //  Chống Hoarding (giam hàng phá)
   const pendingOrdersCount = await Order.countDocuments({
     userId,
     status: "PENDING_PAYMENT",
   });
-
   if (pendingOrdersCount >= 2) {
     await redisClient
       .eval(SAFE_UNLOCK_LUA, { keys: [lockKey], arguments: [lockIdentifier] })
@@ -109,7 +125,6 @@ export const placeOrder = async (
   let sessionData: any;
 
   try {
-    // check sessions
     const redisKey = `checkout_session:${token}`;
     const sessionString = await redisClient.get(redisKey);
     if (!sessionString) throw new Error("SESSION_EXPIRED");
@@ -127,7 +142,6 @@ export const placeOrder = async (
     const randomSuffix = randomBytes(3).toString("hex").toUpperCase();
     orderCode = `TIN-${Date.now()}-${randomSuffix}`;
 
-    // Transaction (auto retry khi mạng yếu)
     await dbSession.withTransaction(async () => {
       const itemMap = new Map<string, { quantity: number; name: string }>();
       for (const subOrder of sessionData.subOrders) {
@@ -288,7 +302,6 @@ export const placeOrder = async (
     return;
   }
 
-  // dọn dẹp & call background jobs
   dbSession.endSession();
   await redisClient.del(`checkout_session:${token}`);
   await redisClient
@@ -319,11 +332,16 @@ export const placeOrder = async (
   }
 
   if (paymentMethod === "COD") {
-    res.status(200).json({
+    const successPayload = {
       code: "success",
       message: "Đặt hàng thành công!",
       data: { orderCode, nextAction: "REDIRECT_THANK_YOU" },
-    });
+    };
+    await redisClient
+      .set(idemRedisKey, JSON.stringify(successPayload), { EX: 86400 })
+      .catch(console.error);
+
+    res.status(200).json(successPayload);
     return;
   }
 
@@ -333,13 +351,20 @@ export const placeOrder = async (
       amount: sessionData.financials.grandTotal,
       orderInfo: `Thanh toán đơn hàng ${orderCode} tại Tintage`,
     });
-    res.status(200).json({
+
+    const gatewayPayload = {
       code: "success",
       message: "Đang chuyển hướng sang cổng thanh toán...",
       data: { orderCode, nextAction: "REDIRECT_PAYMENT_GATEWAY", paymentUrl },
-    });
+    };
+
+    await redisClient
+      .set(idemRedisKey, JSON.stringify(gatewayPayload), { EX: 86400 })
+      .catch(console.error);
+
+    res.status(200).json(gatewayPayload);
   } catch (error) {
-    console.error("[MoMo Gateway Error]:", error);
+    console.error("MoMo Gateway Error:", error);
     res.status(502).json({
       code: "error",
       message:
