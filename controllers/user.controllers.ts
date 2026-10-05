@@ -310,10 +310,16 @@ export const addAddress = async (
       }
     }
 
+    const { _id, ...restDataFE } = newAddress;
+    const responseData = {
+      id: _id.toString(),
+      ...restDataFE,
+    };
+
     res.status(201).json({
       code: "success",
       message: "Thêm địa chỉ thành công.",
-      data: newAddress,
+      data: responseData,
     });
   } catch (error: any) {
     console.error("Lỗi khi thêm địa chỉ: ", error.message || error);
