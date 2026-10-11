@@ -5,6 +5,7 @@ export interface IAccountUser extends Document {
   password?: string;
   phone?: string;
   avatar?: string;
+  avatarPublicId?: string;
   isActive: boolean;
   isEmailVerified: boolean;
   slug: string;

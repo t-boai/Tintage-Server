@@ -55,6 +55,10 @@ const schema = new mongoose.Schema<IAccountUser>(
       type: String,
       default: "",
     },
+    avatarPublicId: {
+      type: String,
+      default: "",
+    },
     isActive: {
       type: Boolean,
       default: true,

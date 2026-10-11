@@ -2,6 +2,7 @@
 import "dotenv/config";
 
 import "@/queues/orderExpiration.queue";
+import "@/queues/fileCleanup.queue";
 
 import express from "express";
 

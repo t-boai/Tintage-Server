@@ -17,16 +17,22 @@ import mongoose from "mongoose";
 
 // configs
 import { REFRESH_COOKIE_OPTIONS } from "@/config/refreshCookie-option.config";
+import { redisClient } from "@/config/redis.config";
 
 // Interface
 import { AccountRequest } from "@/interfaces/request.interfaces";
 
-// z
+// z & crypto
 import z from "zod";
-import { redisClient } from "@/config/redis.config";
+import { randomUUID } from "node:crypto";
+
+// helper
 import { getOtpEmailHtml, sendMail } from "@/helpers/mail.helper";
 import { generateRandomNumber } from "@/helpers/generate.helper";
-import { randomUUID } from "node:crypto";
+import { generateUploadSignature } from "@/helpers/cloudinary.helper";
+
+// queue
+import { fileCleanupQueue } from "@/queues/fileCleanup.queue";
 
 const updateProfileSchema = z
   .object({
@@ -63,6 +69,13 @@ const changePasswordSchema = z
     message: "Mật khẩu xác nhận không khớp.",
     path: ["confirmPassword"],
   });
+
+const updateAvatarSchema = z
+  .object({
+    avatarUrl: z.string().url("Link avatar không hợp lệ."),
+    avatarPublicId: z.string().min(1, "Thiếu Public ID của ảnh."),
+  })
+  .strict();
 
 export const registerPost = async (
   req: Request,
@@ -772,6 +785,129 @@ export const executeChangePassword = async (
     });
   } catch (error) {
     console.error("[Execute Change Pwd Error]:", error);
+    res.status(500).json({ code: "error", message: "Lỗi hệ thống Server." });
+  }
+};
+
+export const getAvatarSignature = async (
+  req: AccountRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const userId = req.account?.id;
+    if (!userId) {
+      res.status(401).json({ code: "error", message: "Vui lòng đăng nhập." });
+      return;
+    }
+
+    // throttling
+    const throttleKey = `throttle:upload_sig:${userId}`;
+    const requests = await redisClient.incr(throttleKey);
+
+    if (requests === 1) {
+      await redisClient.expire(throttleKey, 60); // Reset sau 60s
+    }
+
+    if (requests > 3) {
+      res.status(429).json({
+        code: "error",
+        message: "Bạn thao tác quá nhanh. Vui lòng đợi 1 phút.",
+      });
+      return;
+    }
+
+    // Tách thư mục theo ID người dùng
+    const folderName = `AVT/user_${userId}`;
+
+    // Gắn strict thông số vào signature
+    const uploadData = generateUploadSignature(folderName);
+
+    res.status(200).json({
+      code: "success",
+      message: "Tạo signature thành công.",
+      data: uploadData,
+    });
+  } catch (error) {
+    console.error("Get Avatar Signature Error: ", error);
+    res.status(500).json({ code: "error", message: "Lỗi hệ thống Server." });
+  }
+};
+
+export const updateAvatar = async (
+  req: AccountRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const userId = req.account?.id;
+    if (!userId) {
+      res.status(401).json({ code: "error", message: "Vui lòng đăng nhập." });
+      return;
+    }
+
+    const parseResult = updateAvatarSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      res
+        .status(400)
+        .json({ code: "error", message: parseResult.error.issues[0]?.message });
+      return;
+    }
+    const { avatarUrl, avatarPublicId } = parseResult.data;
+
+    // check chủ file (spoofing check)
+    const expectedPrefix = `AVT/user_${userId}/`;
+    if (!avatarPublicId.startsWith(expectedPrefix)) {
+      res
+        .status(403)
+        .json({ code: "error", message: "Nguồn ảnh không hợp lệ." });
+      return;
+    }
+
+    const oldUser = await AccountUser.findOneAndUpdate(
+      { _id: userId, deleted: false },
+      {
+        $set: {
+          avatar: avatarUrl,
+          avatarPublicId: avatarPublicId,
+        },
+      },
+    )
+      .select("avatarPublicId")
+      .lean();
+
+    if (!oldUser) {
+      res
+        .status(404)
+        .json({ code: "error", message: "Tài khoản không tồn tại." });
+      return;
+    }
+
+    // delete cache
+    await redisClient.del(`user:profile:${userId}`).catch(console.error);
+
+    res.status(200).json({
+      code: "success",
+      message: "Cập nhật ảnh đại diện thành công!",
+      data: { avatar: avatarUrl },
+    });
+
+    // delete ảnh cũ
+    const oldPublicId = oldUser.avatarPublicId;
+
+    if (oldPublicId && oldPublicId !== avatarPublicId) {
+      await fileCleanupQueue
+        .add(
+          `delete-cloudinary-image`,
+          { publicId: oldPublicId },
+          {
+            attempts: 3,
+            backoff: { type: "exponential", delay: 2000 },
+            removeOnComplete: true,
+          },
+        )
+        .catch((err) => console.error("Lỗi đẩy Queue xóa ảnh:", err));
+    }
+  } catch (error) {
+    console.error("Update Avatar Error: ", error);
     res.status(500).json({ code: "error", message: "Lỗi hệ thống Server." });
   }
 };

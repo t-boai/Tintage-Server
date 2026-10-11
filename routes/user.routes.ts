@@ -40,4 +40,16 @@ router.patch(
   userControllers.executeChangePassword,
 );
 
+router.get(
+  "/avatar/signature",
+  authMiddlewares.verifyToken,
+  userControllers.getAvatarSignature,
+);
+
+router.patch(
+  "/avatar",
+  authMiddlewares.verifyToken,
+  userControllers.updateAvatar,
+);
+
 export default router;
