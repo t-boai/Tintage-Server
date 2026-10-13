@@ -128,6 +128,7 @@ export const productDetail = async (
       stock: product.stock,
       gender: product.gender,
       colors: product.colors,
+      isActive: product.isActive,
       viewsCount: (product.viewsCount || 0) + 1,
       likesCount: product.likesCount || 0,
       salesCount: product.salesCount || 0,
