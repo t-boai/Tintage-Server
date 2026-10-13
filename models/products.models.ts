@@ -63,11 +63,16 @@ const schema = new Schema<IProduct>(
       default: "",
     },
     images: {
-      type: [String],
-      required: [true, "Vui lòng cung cấp ít nhất 1 hình ảnh"],
+      type: [
+        {
+          url: { type: String, required: true },
+          publicId: { type: String, required: true },
+        },
+      ],
       validate: {
-        validator: (val: string[]) => val.length > 0,
-        message: "Sản phẩm phải có ít nhất 1 hình ảnh",
+        validator: (val: Array<{ url: string; publicId: string }>) =>
+          val.length >= 1 && val.length <= 9,
+        message: "Sản phẩm phải có từ 1 đến 9 hình ảnh",
       },
     },
     category: {
@@ -203,6 +208,14 @@ schema.index({
 
 // tơi ưu cho dailyDiscover
 schema.index({ deleted: 1, isActive: 1, stock: 1, hotScore: -1 });
+
+schema.index({
+  seller: 1,
+  deleted: 1,
+  isActive: 1,
+  stock: 1,
+  createdAt: -1,
+});
 
 const Product = mongoose.model<IProduct>("Product", schema, "products");
 

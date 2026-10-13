@@ -10,6 +10,7 @@ import productRoutes from "@/routes/product.routes";
 import checkoutRoutes from "@/routes/checkout.routes";
 import paymentRoutes from "@/routes/payment.routes";
 import orderRoutes from "@/routes/order.routes";
+import sellerRoutes from "@/routes/seller.routes";
 
 const router: Router = Router();
 
@@ -27,5 +28,6 @@ router.use("/product", productRoutes);
 router.use("/checkout", checkoutRoutes);
 router.use("/payment", paymentRoutes);
 router.use("/order", orderRoutes);
+router.use("/seller", sellerRoutes);
 
 export default router;

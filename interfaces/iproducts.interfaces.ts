@@ -1,5 +1,10 @@
 import mongoose, { Document } from "mongoose";
 
+export interface IProductImage {
+  url: string;
+  publicId: string;
+}
+
 export interface IProduct extends Document {
   brand: string;
   name: string;
@@ -8,7 +13,7 @@ export interface IProduct extends Document {
   originalPrice?: number;
   condition?: number;
   size?: string;
-  images: string[];
+  images: IProductImage[];
   category: mongoose.Types.ObjectId;
   seller: mongoose.Types.ObjectId;
   location: string;
