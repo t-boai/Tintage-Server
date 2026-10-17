@@ -14,10 +14,22 @@ router.get(
   sellerControllers.getSellerProducts,
 );
 
+router.get(
+  "/products/upload-signature",
+  authMiddleWare.verifyToken,
+  sellerControllers.getProductUploadSignature,
+);
+
 router.patch(
   "/products/:id",
   authMiddleWare.verifyToken,
   sellerControllers.updateSellerProduct,
 );
+
+// router.post(
+//   "/create-seller-product",
+//   authMiddleWare.verifyToken,
+//   sellerControllers.createSellerProduct,
+// );
 
 export default router;

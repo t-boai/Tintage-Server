@@ -89,8 +89,8 @@ const schema = new Schema<IProduct>(
     },
     location: {
       type: String,
-      required: [true, "Vui lòng cung cấp khu vực bán (VD: Hà Nội, TP.HCM)"],
       trim: true,
+      default: "",
       index: true,
     },
     description: {

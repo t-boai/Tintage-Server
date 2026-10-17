@@ -7,13 +7,17 @@ cloudinary.config({
   secure: true,
 });
 
-export const generateUploadSignature = (folder: string) => {
+export const generateUploadSignature = (folder: string, tags?: string[]) => {
   const timestamp = Math.round(new Date().getTime() / 1000);
 
-  const paramsToSign = {
+  const paramsToSign: Record<string, any> = {
     timestamp,
     folder,
   };
+
+  if (tags && tags.length > 0) {
+    paramsToSign.tags = tags.join(",");
+  }
 
   const signature = cloudinary.utils.api_sign_request(
     paramsToSign,
@@ -27,7 +31,7 @@ export const generateUploadSignature = (folder: string) => {
     apiKey: process.env.CLOUDINARY_API_KEY,
     folder,
     transformation: "q_auto,f_auto",
-    tags: ["unconfirmed_avatar"],
+    tags: tags ? tags.join(",") : undefined,
   };
 };
 

@@ -11,8 +11,12 @@ import { HOME_CACHE_KEYS } from "@/config/homeCacheKey.config";
 import { triggerFullRevalidate } from "@/utils/revalidateFE.utils";
 import { fileCleanupQueue } from "@/queues/fileCleanup.queue";
 
+// helper
+import { generateUploadSignature } from "@/helpers/cloudinary.helper";
+
 // model
 import Product from "@/models/products.models";
+import Categories from "@/models/categories.models";
 
 const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -261,3 +265,61 @@ export const updateSellerProduct = async (
     }
   }
 };
+
+export const getProductUploadSignature = async (
+  req: AccountRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const userId = req.account?.id;
+    if (!userId) {
+      res.status(401).json({ code: "error", message: "Vui lòng đăng nhập." });
+      return;
+    }
+
+    const throttleKey = `throttle:product_upload_sig:${userId}`;
+    const requests = await redisClient.incr(throttleKey);
+
+    if (requests === 1) {
+      await redisClient.expire(throttleKey, 60);
+    }
+
+    if (requests > 10) {
+      res.status(429).json({
+        code: "error",
+        message: "Thao tác quá nhanh. Vui lòng đợi 1 phút để tiếp tục upload.",
+      });
+      return;
+    }
+
+    const folderName = `Products/user_${userId}`;
+
+    const tags = ["temporary_upload", `user_${userId}`];
+
+    const uploadData = generateUploadSignature(folderName, tags);
+
+    res.status(200).json({
+      code: "success",
+      message: "Tạo signature thành công.",
+      data: uploadData,
+    });
+  } catch (error) {
+    console.error("[Get Product Upload Signature Error]:", error);
+    res.status(500).json({ code: "error", message: "Lỗi hệ thống Server." });
+  }
+};
+
+const baseProductSchema = z.object({
+  name: z.string().trim().min(1, "Vui lòng nhập tên sản phẩm").max(200),
+  category: z.string().regex(/^[0-9a-fA-F]{24}$/, "Danh mục không hợp lệ"),
+  images: z
+    .array(
+      z.object({
+        url: z.string().url(),
+        publicId: z.string().min(1),
+      }),
+    )
+    .min(1, "Sản phẩm phải có ít nhất 1 hình ảnh")
+    .max(9, "Tối đa 9 hình ảnh"),
+  isActive: z.boolean().default(false),
+});
