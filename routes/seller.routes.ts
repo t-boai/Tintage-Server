@@ -26,10 +26,10 @@ router.patch(
   sellerControllers.updateSellerProduct,
 );
 
-// router.post(
-//   "/create-seller-product",
-//   authMiddleWare.verifyToken,
-//   sellerControllers.createSellerProduct,
-// );
+router.post(
+  "/create-seller-product",
+  authMiddleWare.verifyToken,
+  sellerControllers.createSellerProduct,
+);
 
 export default router;

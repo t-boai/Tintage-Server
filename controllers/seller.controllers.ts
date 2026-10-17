@@ -323,3 +323,143 @@ const baseProductSchema = z.object({
     .max(9, "Tối đa 9 hình ảnh"),
   isActive: z.boolean().default(false),
 });
+
+const draftProductSchema = baseProductSchema.extend({
+  brand: z.string().trim().optional().default("No Brand"),
+  price: z.number().min(0).optional().default(0),
+  originalPrice: z.number().min(0).optional().default(0),
+  stock: z.number().int().min(0).optional().default(0),
+  condition: z.number().min(0).max(100).optional().default(100),
+  gender: z
+    .enum(["men", "women", "unisex", "kids"])
+    .optional()
+    .default("unisex"),
+  size: z.string().trim().optional().default(""),
+  colors: z.array(z.string().trim()).optional().default([]),
+  material: z.string().trim().optional().default(""),
+  description: z.string().trim().optional().default(""),
+});
+
+const publishProductSchema = baseProductSchema.extend({
+  brand: z.string().trim().min(1, "Vui lòng nhập thương hiệu"),
+  price: z.number().min(1000, "Giá bán tối thiểu 1.000đ"),
+  originalPrice: z.number().min(0).optional().default(0),
+  stock: z.number().int().min(1, "Tồn kho phải lớn hơn 0 để đăng bán"),
+  condition: z.number().min(0).max(100).default(100),
+  gender: z.enum(["men", "women", "unisex", "kids"]).default("unisex"),
+  size: z.string().trim().min(1, "Vui lòng chọn size").default("FreeSize"),
+  colors: z.array(z.string().trim()).min(1, "Vui lòng chọn ít nhất 1 màu"),
+  material: z.string().trim().optional().default(""),
+  description: z.string().trim().min(10, "Mô tả sản phẩm quá ngắn"),
+});
+
+export const createSellerProduct = async (
+  req: AccountRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const userId = req.account?.id;
+    if (!userId) {
+      res.status(401).json({ code: "error", message: "Vui lòng đăng nhập." });
+      return;
+    }
+
+    // chống spam = redis lock
+    const lockKey = `lock:create_product:${userId}`;
+    const isLocked = await redisClient.set(lockKey, "LOCKED", {
+      NX: true,
+      EX: 3,
+    });
+    if (!isLocked) {
+      res.status(429).json({
+        code: "error",
+        message: "Hệ thống đang xử lý, vui lòng không click nhiều lần.",
+      });
+      return;
+    }
+
+    //  dynamic validation
+    const isPublishing = req.body.isActive === true;
+    const schemaToUse = isPublishing
+      ? publishProductSchema
+      : draftProductSchema;
+
+    const parseResult = schemaToUse.safeParse(req.body);
+    if (!parseResult.success) {
+      res.status(400).json({
+        code: "error",
+        message:
+          parseResult.error.issues[0]?.message || "Dữ liệu không hợp lệ.",
+      });
+      return;
+    }
+
+    const validatedData = parseResult.data;
+
+    const categoryExists = await Categories.exists({
+      _id: validatedData.category,
+      deleted: false,
+    });
+    if (!categoryExists) {
+      res.status(400).json({
+        code: "error",
+        message: "Danh mục không tồn tại hoặc đã bị xóa.",
+      });
+      return;
+    }
+
+    const newProduct = await Product.create({
+      ...validatedData,
+      seller: userId,
+    });
+
+    res.status(201).json({
+      code: "success",
+      message: isPublishing
+        ? "Đăng bán sản phẩm thành công!"
+        : "Đã lưu nháp sản phẩm.",
+      data: {
+        _id: newProduct._id,
+        slug: newProduct.slug,
+      },
+    });
+  } catch (error: any) {
+    console.error("[Create Seller Product Error]:", error);
+
+    if (error.name === "ValidationError") {
+      const messages = Object.values(error.errors).map(
+        (err: any) => err.message,
+      );
+
+      if (!res.headersSent) {
+        res.status(400).json({
+          code: "error",
+          message: messages.join(", "),
+        });
+      }
+      return;
+    }
+
+    if (req.body.images && Array.isArray(req.body.images)) {
+      const publicIds = req.body.images
+        .map((img: any) => img.publicId)
+        .filter(Boolean);
+      if (publicIds.length > 0) {
+        const cleanupJobs = publicIds.map((publicId: string) => ({
+          name: `rollback-cloudinary-image`,
+          data: { publicId },
+          opts: {
+            attempts: 3,
+            backoff: { type: "exponential", delay: 2000 },
+            removeOnComplete: true,
+          },
+        }));
+        fileCleanupQueue.addBulk(cleanupJobs).catch(console.error);
+      }
+    }
+
+    if (!res.headersSent) {
+      res.status(500).json({ code: "error", message: "Lỗi hệ thống Server." });
+    }
+  }
+};
