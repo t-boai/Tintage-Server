@@ -357,6 +357,26 @@ export const createSellerProduct = async (
   req: AccountRequest,
   res: Response,
 ): Promise<void> => {
+  const rollbackUploadedImages = (imagesPayload?: any[]) => {
+    if (imagesPayload && Array.isArray(imagesPayload)) {
+      const publicIds = imagesPayload
+        .map((img: any) => img.publicId)
+        .filter(Boolean);
+      if (publicIds.length > 0) {
+        const cleanupJobs = publicIds.map((publicId: string) => ({
+          name: `rollback-cloudinary-image`,
+          data: { publicId },
+          opts: {
+            attempts: 3,
+            backoff: { type: "exponential", delay: 2000 },
+            removeOnComplete: true,
+          },
+        }));
+        fileCleanupQueue.addBulk(cleanupJobs).catch(console.error);
+      }
+    }
+  };
+
   try {
     const userId = req.account?.id;
     if (!userId) {
@@ -364,13 +384,14 @@ export const createSellerProduct = async (
       return;
     }
 
-    // chống spam = redis lock
     const lockKey = `lock:create_product:${userId}`;
     const isLocked = await redisClient.set(lockKey, "LOCKED", {
       NX: true,
       EX: 3,
     });
+
     if (!isLocked) {
+      rollbackUploadedImages(req.body.images);
       res.status(429).json({
         code: "error",
         message: "Hệ thống đang xử lý, vui lòng không click nhiều lần.",
@@ -378,7 +399,6 @@ export const createSellerProduct = async (
       return;
     }
 
-    //  dynamic validation
     const isPublishing = req.body.isActive === true;
     const schemaToUse = isPublishing
       ? publishProductSchema
@@ -386,6 +406,8 @@ export const createSellerProduct = async (
 
     const parseResult = schemaToUse.safeParse(req.body);
     if (!parseResult.success) {
+      rollbackUploadedImages(req.body.images);
+
       res.status(400).json({
         code: "error",
         message:
@@ -400,7 +422,10 @@ export const createSellerProduct = async (
       _id: validatedData.category,
       deleted: false,
     });
+
     if (!categoryExists) {
+      rollbackUploadedImages(req.body.images);
+
       res.status(400).json({
         code: "error",
         message: "Danh mục không tồn tại hoặc đã bị xóa.",
@@ -426,6 +451,8 @@ export const createSellerProduct = async (
   } catch (error: any) {
     console.error("[Create Seller Product Error]:", error);
 
+    rollbackUploadedImages(req.body.images);
+
     if (error.name === "ValidationError") {
       const messages = Object.values(error.errors).map(
         (err: any) => err.message,
@@ -438,24 +465,6 @@ export const createSellerProduct = async (
         });
       }
       return;
-    }
-
-    if (req.body.images && Array.isArray(req.body.images)) {
-      const publicIds = req.body.images
-        .map((img: any) => img.publicId)
-        .filter(Boolean);
-      if (publicIds.length > 0) {
-        const cleanupJobs = publicIds.map((publicId: string) => ({
-          name: `rollback-cloudinary-image`,
-          data: { publicId },
-          opts: {
-            attempts: 3,
-            backoff: { type: "exponential", delay: 2000 },
-            removeOnComplete: true,
-          },
-        }));
-        fileCleanupQueue.addBulk(cleanupJobs).catch(console.error);
-      }
     }
 
     if (!res.headersSent) {

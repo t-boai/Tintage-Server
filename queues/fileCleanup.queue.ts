@@ -1,17 +1,9 @@
 import { Queue, Worker, Job } from "bullmq";
-import IORedis from "ioredis";
-
 import { deleteCloudinaryImage } from "@/helpers/cloudinary.helper";
-
-const redisConnection = new IORedis(
-  process.env.REDIS_URL || "redis://localhost:6379",
-  {
-    maxRetriesPerRequest: null,
-  },
-);
+import { redisClient } from "@/config/redis.config"; // 👉 TỐI ƯU: Dùng chung file config
 
 export const fileCleanupQueue = new Queue("file-cleanup-queue", {
-  connection: redisConnection,
+  connection: redisClient, // 👉 TỐI ƯU: Dùng chung Connection
 });
 
 const fileCleanupWorker = new Worker(
@@ -23,15 +15,19 @@ const fileCleanupWorker = new Worker(
     const isSuccess = await deleteCloudinaryImage(publicId);
 
     if (!isSuccess) {
-      // Exponential Backoff
+      // Exponential Backoff sẽ tự động kích hoạt nhờ BullMQ
       throw new Error(`Xóa ảnh thất bại trên Cloudinary: ${publicId}`);
     }
 
     return true;
   },
   {
-    connection: redisConnection,
-    concurrency: 5, // Xử lý song song tối đa 5 file cùng lúc
+    connection: redisClient,
+    concurrency: 5,
+
+    // 🛡️ VŨ KHÍ TỐI THƯỢNG BẢO VỆ QUOTA REDIS FREE:
+    drainDelay: 60000, // Ngủ 60 giây nếu queue trống
+    skipStalledCheck: true, // Tắt check kẹt job ngầm (30s/lần)
   },
 );
 

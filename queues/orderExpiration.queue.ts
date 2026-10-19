@@ -85,7 +85,14 @@ const orderExpirationWorker = new Worker(
         .catch(console.error);
     }
   },
-  { connection: redisClient, concurrency: 10 },
+  {
+    connection: redisClient,
+    concurrency: 10,
+
+    // 🛡️ VŨ KHÍ TỐI THƯỢNG BẢO VỆ QUOTA REDIS FREE:
+    drainDelay: 60000,
+    skipStalledCheck: true,
+  },
 );
 
 orderExpirationWorker.on("failed", (job, err) => {
