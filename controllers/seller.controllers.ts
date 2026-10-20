@@ -472,3 +472,65 @@ export const createSellerProduct = async (
     }
   }
 };
+
+export const deleteSellerProduct = async (
+  req: AccountRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const userId = req.account?.id;
+    const { id: productId } = req.params;
+
+    if (!userId || !mongoose.Types.ObjectId.isValid(`${productId}`)) {
+      res.status(400).json({ code: "error", message: "Yêu cầu không hợp lệ." });
+      return;
+    }
+
+    const product = await Product.findOne({
+      _id: productId,
+      seller: userId,
+      deleted: false,
+    }).lean();
+
+    if (!product) {
+      res.status(404).json({
+        code: "error",
+        message: "Sản phẩm không tồn tại hoặc bạn không có quyền xóa.",
+      });
+      return;
+    }
+
+    await Product.updateOne(
+      { _id: productId },
+      {
+        $set: {
+          deleted: true,
+          isActive: false,
+          stock: 0,
+        },
+      },
+    );
+
+    res.status(200).json({
+      code: "success",
+      message: "Đã xóa sản phẩm thành công.",
+    });
+
+    if (product.slug) {
+      triggerFullRevalidate(`product-${product.slug}`).catch(console.error);
+    }
+
+    if (product.isActive && product.stock > 0) {
+      triggerFullRevalidate(
+        "home-products",
+        [HOME_CACHE_KEYS.FEATURED, HOME_CACHE_KEYS.DAILY_DISCOVER],
+        2,
+      ).catch(console.error);
+    }
+  } catch (error: any) {
+    console.error("Delete Seller Product Error:", error);
+    if (!res.headersSent) {
+      res.status(500).json({ code: "error", message: "Lỗi hệ thống Server." });
+    }
+  }
+};

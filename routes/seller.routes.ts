@@ -32,4 +32,10 @@ router.post(
   sellerControllers.createSellerProduct,
 );
 
+router.delete(
+  "/products/:id",
+  authMiddleWare.verifyToken,
+  sellerControllers.deleteSellerProduct,
+);
+
 export default router;
